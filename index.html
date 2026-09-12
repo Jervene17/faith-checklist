@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Faith Checklist</title>
+<meta name="description" content="A daily, weekly, and monthly faith practice tracker." />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#F6F1E7" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Faith Checklist" />
+<style>html,body{margin:0;padding:0;background:#F6F1E7;}</style>
+</head>
+<body>
+<style>
+  #faith-tracker-root {
+    --bg: #F6F1E7;
+    --ink: #232042;
+    --accent: #D9A441;
+    --success: #6B8F5E;
+    --muted: #8A8375;
+    --line: #DDD3BE;
+    --card: #FBF8F1;
+
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+    box-sizing: border-box;
+    min-height: 100%;
+  }
+  #faith-tracker-root * { box-sizing: border-box; }
+
+  .ft-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 14px;
+  }
+  .ft-header h1 {
+    font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 2px;
+    letter-spacing: 0.2px;
+  }
+  .ft-header .ft-sub {
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .ft-sun {
+    width: 26px; height: 26px; flex-shrink: 0;
+  }
+
+  .ft-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .ft-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--muted);
+    padding: 9px 4px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .ft-tab.active {
+    color: var(--ink);
+    border-bottom: 2px solid var(--accent);
+    font-weight: 600;
+  }
+
+  .ft-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .ft-nav button {
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    border-radius: 6px;
+    width: 32px; height: 32px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .ft-nav button:active { background: var(--line); }
+  .ft-nav .ft-range {
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
+  }
+  .ft-nav .ft-today-btn {
+    width: auto;
+    padding: 0 10px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 6px;
+  }
+
+  .ft-section {
+    margin-bottom: 22px;
+  }
+  .ft-section-title {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+
+  .ft-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line);
+    gap: 10px;
+  }
+  .ft-row:last-child { border-bottom: none; }
+  .ft-row-label {
+    font-size: 14.5px;
+    flex: 1;
+  }
+  .ft-row-hint {
+    display: block;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .ft-check {
+    width: 22px; height: 22px;
+    border: 1.5px solid var(--muted);
+    border-radius: 5px;
+    background: var(--card);
+    cursor: pointer;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .ft-check.checked {
+    background: var(--success);
+    border-color: var(--success);
+  }
+  .ft-check.checked::after {
+    content: "";
+    position: absolute;
+    left: 6px; top: 2px;
+    width: 6px; height: 11px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(40deg);
+  }
+
+  .ft-num {
+    width: 56px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--ink);
+    text-align: center;
+  }
+  .ft-text {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 13.5px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--ink);
+  }
+  textarea.ft-text { min-height: 56px; resize: vertical; }
+
+  .ft-progress-wrap {
+    height: 6px;
+    background: var(--line);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .ft-progress-bar {
+    height: 100%;
+    background: var(--accent);
+  }
+  .ft-progress-label {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  .ft-stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .ft-stat {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .ft-stat-num {
+    font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .ft-stat-label {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .ft-champion {
+    border-left: 3px solid var(--accent);
+    padding: 8px 0 8px 12px;
+    margin-bottom: 8px;
+    font-size: 13.5px;
+  }
+  .ft-champion .ft-champ-cat { color: var(--muted); font-size: 11.5px; display:block; margin-bottom:2px; }
+  .ft-champion.ft-champ-leading { border-left-color: var(--success); }
+
+  .ft-empty {
+    color: var(--muted);
+    font-size: 13.5px;
+    padding: 20px 0;
+    text-align: center;
+  }
+
+  .ft-settings-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    color: var(--muted);
+    margin-top: 14px;
+  }
+  .ft-settings-line input {
+    width: 50px;
+    padding: 4px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    font-size: 12.5px;
+    text-align: center;
+    background: var(--card);
+    color: var(--ink);
+  }
+
+  .ft-loading { color: var(--muted); font-size: 13.5px; padding: 30px 0; text-align: center; }
+
+  .ft-backup-bar {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-bottom: 14px;
+  }
+  .ft-backup-bar button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-family: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+</style>
+
+<div id="faith-tracker-root">
+  <div class="ft-header">
+    <div>
+      <h1>Faith Checklist</h1>
+      <div class="ft-sub" id="ft-header-sub">Loading…</div>
+    </div>
+    <svg class="ft-sun" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="14" r="5" fill="#D9A441"/>
+      <path d="M12 3v3M4.2 8.2l2.1 2.1M19.8 8.2l-2.1 2.1M2 15h3M19 15h3" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <div class="ft-tabs">
+    <button class="ft-tab active" data-tab="today">Today</button>
+    <button class="ft-tab" data-tab="week">This Week</button>
+    <button class="ft-tab" data-tab="month">This Month</button>
+  </div>
+
+  <div class="ft-backup-bar">
+    <button id="ft-export-btn" type="button">Back up data</button>
+    <button id="ft-import-btn" type="button">Restore backup</button>
+    <input type="file" id="ft-import-file" accept="application/json" style="display:none" />
+  </div>
+
+  <div id="ft-content">
+    <div class="ft-loading">Loading your checklist…</div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const STORAGE_KEY = 'faith-tracker-data';
+  const DAY_MS = 86400000;
+  let data = null; // { entries: {date: {...}}, letterMax: 170 }
+  let activeTab = 'today';
+  let viewDate = new Date(); // for today tab
+  let weekAnchor = new Date(); // any date within viewed week
+  let monthAnchor = new Date(); // any date within viewed month
+
+  const root = document.getElementById('faith-tracker-root');
+  const content = document.getElementById('ft-content');
+  const headerSub = document.getElementById('ft-header-sub');
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromISO(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+  function fmtLong(d) { return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
+  function fmtShort(d) { return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+  function monthKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+  function monthLabel(d) { return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
+  function startOfWeek(d) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); r.setHours(0,0,0,0); return r; }
+  function isFuture(d) { const t = new Date(); t.setHours(0,0,0,0); return d.getTime() > t.getTime(); }
+
+  function defaultEntry() {
+    return {
+      sunday: false, predawn: false, wednesday: false,
+      catchupSunday: false, catchupWednesday: false,
+      bibleChapters: 0, sundayReads: 0, wednesdayReads: 0,
+      letters: [], exercise: false, lecture: false,
+      evangelism: 0, questions: '', questionsAsked: false
+    };
+  }
+
+  async function loadData() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        data = JSON.parse(raw);
+        if (!data.entries) data.entries = {};
+        if (typeof data.letterMax !== 'number') data.letterMax = 170;
+      } else {
+        data = { entries: {}, letterMax: 170 };
+      }
+    } catch (e) {
+      data = { entries: {}, letterMax: 170 };
+    }
+  }
+
+  let saveTimer = null;
+  function saveData() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+      catch (e) { console.error('Save failed', e); }
+    }, 150);
+  }
+
+  function exportData() {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'faith-checklist-backup-' + toISO(new Date()) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        if (!parsed.entries) throw new Error('Invalid file');
+        data = parsed;
+        if (typeof data.letterMax !== 'number') data.letterMax = 170;
+        saveData();
+        render();
+        alert('Backup restored.');
+      } catch (e) {
+        alert('Could not read that file. Make sure it\'s a backup exported from this app.');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function getEntry(iso) {
+    if (!data.entries[iso]) data.entries[iso] = defaultEntry();
+    return data.entries[iso];
+  }
+
+  function allLettersRead() {
+    const s = new Set();
+    Object.values(data.entries).forEach(e => (e.letters || []).forEach(n => s.add(n)));
+    return s;
+  }
+
+  // ---------- rendering ----------
+
+  function render() {
+    headerSub.textContent = fmtLong(new Date());
+    if (activeTab === 'today') renderToday();
+    else if (activeTab === 'week') renderWeek();
+    else renderMonth();
+  }
+
+  function checkRow(label, hint, checked, onToggle) {
+    const row = document.createElement('div');
+    row.className = 'ft-row';
+    const labelWrap = document.createElement('div');
+    labelWrap.className = 'ft-row-label';
+    labelWrap.textContent = label;
+    if (hint) {
+      const h = document.createElement('span');
+      h.className = 'ft-row-hint';
+      h.textContent = hint;
+      labelWrap.appendChild(h);
+    }
+    const box = document.createElement('div');
+    box.className = 'ft-check' + (checked ? ' checked' : '');
+    box.addEventListener('click', () => { onToggle(!checked); });
+    row.appendChild(labelWrap);
+    row.appendChild(box);
+    return row;
+  }
+
+  function numRow(label, hint, value, onChange, min) {
+    const row = document.createElement('div');
+    row.className = 'ft-row';
+    const labelWrap = document.createElement('div');
+    labelWrap.className = 'ft-row-label';
+    labelWrap.textContent = label;
+    if (hint) {
+      const h = document.createElement('span');
+      h.className = 'ft-row-hint';
+      h.textContent = hint;
+      labelWrap.appendChild(h);
+    }
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.className = 'ft-num';
+    input.min = min || 0;
+    input.value = value;
+    input.addEventListener('change', () => {
+      const v = Math.max(min || 0, parseInt(input.value, 10) || 0);
+      input.value = v;
+      onChange(v);
+    });
+    row.appendChild(labelWrap);
+    row.appendChild(input);
+    return row;
+  }
+
+  function sectionTitle(text) {
+    const t = document.createElement('p');
+    t.className = 'ft-section-title';
+    t.textContent = text;
+    return t;
+  }
+
+  function renderToday() {
+    content.innerHTML = '';
+    const iso = toISO(viewDate);
+    const entry = getEntry(iso);
+
+    // nav
+    const nav = document.createElement('div');
+    nav.className = 'ft-nav';
+    const prev = document.createElement('button');
+    prev.textContent = '‹';
+    prev.addEventListener('click', () => { viewDate = new Date(viewDate.getTime() - DAY_MS); render(); });
+    const range = document.createElement('div');
+    range.className = 'ft-range';
+    range.textContent = fmtLong(viewDate);
+    const next = document.createElement('button');
+    next.textContent = '›';
+    next.disabled = isFuture(new Date(viewDate.getTime() + DAY_MS - 1));
+    next.style.opacity = next.disabled ? '0.35' : '1';
+    next.addEventListener('click', () => { if (!next.disabled) { viewDate = new Date(viewDate.getTime() + DAY_MS); render(); } });
+    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
+    content.appendChild(nav);
+
+    // attendance
+    content.appendChild(sectionTitle('Attendance'));
+    const attSec = document.createElement('div');
+    attSec.className = 'ft-section';
+    attSec.appendChild(checkRow('Sunday message', null, entry.sunday, v => { entry.sunday = v; saveData(); render(); }));
+    attSec.appendChild(checkRow('Predawn', null, entry.predawn, v => { entry.predawn = v; saveData(); render(); }));
+    attSec.appendChild(checkRow('Wednesday message', null, entry.wednesday, v => { entry.wednesday = v; saveData(); render(); }));
+    const note = document.createElement('div');
+    note.className = 'ft-row-hint';
+    note.style.marginTop = '8px';
+    note.textContent = 'Once connected to the attendance bot, this will fill in automatically from the logs.';
+    attSec.appendChild(note);
+    content.appendChild(attSec);
+
+    // catch up
+    content.appendChild(sectionTitle('Catch up if missed'));
+    const catchSec = document.createElement('div');
+    catchSec.className = 'ft-section';
+    catchSec.appendChild(checkRow('Caught up on Sunday message', null, entry.catchupSunday, v => { entry.catchupSunday = v; saveData(); render(); }));
+    catchSec.appendChild(checkRow('Caught up on Wednesday message', null, entry.catchupWednesday, v => { entry.catchupWednesday = v; saveData(); render(); }));
+    content.appendChild(catchSec);
+
+    // bible + messages
+    content.appendChild(sectionTitle('Reading'));
+    const readSec = document.createElement('div');
+    readSec.className = 'ft-section';
+    readSec.appendChild(numRow('Bible chapters read', null, entry.bibleChapters, v => { entry.bibleChapters = v; saveData(); render(); }));
+    readSec.appendChild(numRow('Sunday message re-reads', 'The more times the better', entry.sundayReads, v => { entry.sundayReads = v; saveData(); render(); }));
+    readSec.appendChild(numRow('Wednesday message re-reads', 'The more times the better', entry.wednesdayReads, v => { entry.wednesdayReads = v; saveData(); render(); }));
+    content.appendChild(readSec);
+
+    // letters
+    content.appendChild(sectionTitle('Story of the Holy Spirit letter'));
+    const letterSec = document.createElement('div');
+    letterSec.className = 'ft-section';
+    const letterRow = document.createElement('div');
+    letterRow.className = 'ft-row';
+    const letterLabelWrap = document.createElement('div');
+    letterLabelWrap.className = 'ft-row-label';
+    letterLabelWrap.textContent = 'Letter numbers read today';
+    const hint = document.createElement('span');
+    hint.className = 'ft-row-hint';
+    hint.textContent = 'e.g. 168, 169, 170';
+    letterLabelWrap.appendChild(hint);
+    const letterInput = document.createElement('input');
+    letterInput.type = 'text';
+    letterInput.className = 'ft-text';
+    letterInput.style.width = '110px';
+    letterInput.value = (entry.letters || []).join(', ');
+    letterInput.addEventListener('change', () => {
+      const nums = letterInput.value.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
+      entry.letters = Array.from(new Set(nums));
+      saveData(); render();
+    });
+    letterRow.appendChild(letterLabelWrap);
+    letterRow.appendChild(letterInput);
+    letterSec.appendChild(letterRow);
+
+    const readSet = allLettersRead();
+    const progWrap = document.createElement('div');
+    progWrap.className = 'ft-progress-wrap';
+    const bar = document.createElement('div');
+    bar.className = 'ft-progress-bar';
+    const pct = Math.min(100, Math.round((readSet.size / (data.letterMax || 170)) * 100));
+    bar.style.width = pct + '%';
+    progWrap.appendChild(bar);
+    letterSec.appendChild(progWrap);
+    const progLabel = document.createElement('div');
+    progLabel.className = 'ft-progress-label';
+    progLabel.textContent = readSet.size + ' of ' + data.letterMax + ' letters read overall';
+    letterSec.appendChild(progLabel);
+
+    const settingsLine = document.createElement('div');
+    settingsLine.className = 'ft-settings-line';
+    const settingsLabel = document.createElement('span');
+    settingsLabel.textContent = 'Latest letter number posted';
+    const settingsInput = document.createElement('input');
+    settingsInput.type = 'number';
+    settingsInput.min = 1;
+    settingsInput.value = data.letterMax;
+    settingsInput.addEventListener('change', () => {
+      data.letterMax = Math.max(1, parseInt(settingsInput.value, 10) || data.letterMax);
+      saveData(); render();
+    });
+    settingsLine.appendChild(settingsLabel);
+    settingsLine.appendChild(settingsInput);
+    letterSec.appendChild(settingsLine);
+
+    content.appendChild(letterSec);
+
+    // exercise / lecture
+    content.appendChild(sectionTitle('Practice'));
+    const practSec = document.createElement('div');
+    practSec.className = 'ft-section';
+    practSec.appendChild(checkRow('Exercise', null, entry.exercise, v => { entry.exercise = v; saveData(); render(); }));
+    practSec.appendChild(checkRow('Lecture', null, entry.lecture, v => { entry.lecture = v; saveData(); render(); }));
+    content.appendChild(practSec);
+
+    // evangelism
+    content.appendChild(sectionTitle('Evangelism'));
+    const evSec = document.createElement('div');
+    evSec.className = 'ft-section';
+    evSec.appendChild(numRow('People met or invited', null, entry.evangelism, v => { entry.evangelism = v; saveData(); render(); }));
+    content.appendChild(evSec);
+
+    // questions
+    content.appendChild(sectionTitle('Ask me questions'));
+    const qSec = document.createElement('div');
+    qSec.className = 'ft-section';
+    const qTextRow = document.createElement('div');
+    qTextRow.style.marginBottom = '8px';
+    const qTextarea = document.createElement('textarea');
+    qTextarea.className = 'ft-text';
+    qTextarea.placeholder = 'Questions or thoughts to bring up…';
+    qTextarea.value = entry.questions || '';
+    qTextarea.addEventListener('change', () => { entry.questions = qTextarea.value; saveData(); });
+    qTextRow.appendChild(qTextarea);
+    qSec.appendChild(qTextRow);
+    qSec.appendChild(checkRow('Asked my questions', null, entry.questionsAsked, v => { entry.questionsAsked = v; saveData(); render(); }));
+    content.appendChild(qSec);
+
+    // milestones / champions across all recorded days
+    content.appendChild(sectionTitle('Milestones'));
+    const champSec = document.createElement('div');
+    champSec.className = 'ft-section';
+    const byDay = dayAggregatesAll();
+    const dayCategories = [
+      ['bibleChapters', 'Bible reading', v => v],
+      ['msgReads', 'Message re-reads', v => v],
+      ['lettersCount', 'Letters read', v => v],
+      ['attendanceCount', 'Attendance', v => v],
+      ['evangelism', 'Evangelism', v => v],
+    ];
+    renderChampions(
+      champSec, byDay, dayCategories, iso,
+      (bestIso) => fmtLong(fromISO(bestIso)),
+      'Log a day to start seeing daily milestones here.'
+    );
+    content.appendChild(champSec);
+  }
+
+  function renderWeek() {
+    content.innerHTML = '';
+    const start = startOfWeek(weekAnchor);
+    const end = new Date(start.getTime() + 6 * DAY_MS);
+
+    const nav = document.createElement('div');
+    nav.className = 'ft-nav';
+    const prev = document.createElement('button');
+    prev.textContent = '‹';
+    prev.addEventListener('click', () => { weekAnchor = new Date(weekAnchor.getTime() - 7 * DAY_MS); render(); });
+    const range = document.createElement('div');
+    range.className = 'ft-range';
+    range.textContent = fmtShort(start) + ' – ' + fmtShort(end);
+    const next = document.createElement('button');
+    next.textContent = '›';
+    const isCurrentWeek = toISO(startOfWeek(new Date())) === toISO(start);
+    next.disabled = isCurrentWeek;
+    next.style.opacity = next.disabled ? '0.35' : '1';
+    next.addEventListener('click', () => { if (!next.disabled) { weekAnchor = new Date(weekAnchor.getTime() + 7 * DAY_MS); render(); } });
+    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
+    content.appendChild(nav);
+
+    const agg = {
+      attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(),
+      exerciseDays: 0, lectureDays: 0, evangelism: 0, catchups: 0
+    };
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getTime() + i * DAY_MS);
+      const e = data.entries[toISO(d)];
+      if (!e) continue;
+      if (e.sunday || e.predawn || e.wednesday) agg.attendanceDays++;
+      agg.bibleChapters += e.bibleChapters || 0;
+      agg.msgReads += (e.sundayReads || 0) + (e.wednesdayReads || 0);
+      (e.letters || []).forEach(n => agg.letters.add(n));
+      if (e.exercise) agg.exerciseDays++;
+      if (e.lecture) agg.lectureDays++;
+      agg.evangelism += e.evangelism || 0;
+      if (e.catchupSunday) agg.catchups++;
+      if (e.catchupWednesday) agg.catchups++;
+    }
+
+    content.appendChild(sectionTitle('This week'));
+    const grid = document.createElement('div');
+    grid.className = 'ft-stat-grid';
+    const stats = [
+      [agg.attendanceDays + ' / 7', 'Days attended a service'],
+      [agg.bibleChapters, 'Bible chapters read'],
+      [agg.msgReads, 'Message re-reads'],
+      [agg.letters.size, 'Letters read'],
+      [agg.exerciseDays + ' / 7', 'Days exercised'],
+      [agg.lectureDays + ' / 7', 'Days at lecture'],
+      [agg.evangelism, 'People met or invited'],
+      [agg.catchups, 'Catch-ups completed'],
+    ];
+    stats.forEach(([num, label]) => {
+      const s = document.createElement('div');
+      s.className = 'ft-stat';
+      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
+      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
+      s.appendChild(n); s.appendChild(l);
+      grid.appendChild(s);
+    });
+    content.appendChild(grid);
+
+    // milestones / champions across all recorded weeks
+    content.appendChild(sectionTitle('Milestones'));
+    const champSec = document.createElement('div');
+    champSec.className = 'ft-section';
+    const byWeek = weekAggregatesAll();
+    const weekCategories = [
+      ['bibleChapters', 'Bible reading', v => v],
+      ['msgReads', 'Message re-reads', v => v],
+      ['letters', 'Letters read', v => v.size],
+      ['attendanceDays', 'Attendance', v => v],
+      ['exerciseDays', 'Exercise', v => v],
+      ['lectureDays', 'Lecture', v => v],
+      ['evangelism', 'Evangelism', v => v],
+    ];
+    renderChampions(
+      champSec, byWeek, weekCategories, toISO(start),
+      (bestWeekStartIso) => {
+        const s = fromISO(bestWeekStartIso);
+        const e = new Date(s.getTime() + 6 * DAY_MS);
+        return fmtShort(s) + ' – ' + fmtShort(e);
+      },
+      'Log a few days to start seeing weekly milestones here.'
+    );
+    content.appendChild(champSec);
+  }
+
+  function aggregateEntries(groupKeyFn) {
+    const byGroup = {};
+    Object.entries(data.entries).forEach(([iso, e]) => {
+      const k = groupKeyFn(iso);
+      if (!byGroup[k]) byGroup[k] = { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
+      const a = byGroup[k];
+      if (e.sunday || e.predawn || e.wednesday) a.attendanceDays++;
+      a.bibleChapters += e.bibleChapters || 0;
+      a.msgReads += (e.sundayReads || 0) + (e.wednesdayReads || 0);
+      (e.letters || []).forEach(n => a.letters.add(n));
+      if (e.exercise) a.exerciseDays++;
+      if (e.lecture) a.lectureDays++;
+      a.evangelism += e.evangelism || 0;
+    });
+    return byGroup;
+  }
+
+  function monthAggregates() {
+    return aggregateEntries(iso => iso.slice(0, 7));
+  }
+
+  function weekAggregatesAll() {
+    return aggregateEntries(iso => toISO(startOfWeek(fromISO(iso))));
+  }
+
+  function dayAggregatesAll() {
+    const byDay = {};
+    Object.entries(data.entries).forEach(([iso, e]) => {
+      byDay[iso] = {
+        bibleChapters: e.bibleChapters || 0,
+        msgReads: (e.sundayReads || 0) + (e.wednesdayReads || 0),
+        lettersCount: (e.letters || []).length,
+        attendanceCount: (e.sunday ? 1 : 0) + (e.predawn ? 1 : 0) + (e.wednesday ? 1 : 0),
+        evangelism: e.evangelism || 0
+      };
+    });
+    return byDay;
+  }
+
+  // Generic renderer for a "best X so far" milestones list.
+  // byGroup: map of groupKey -> aggregate object
+  // categories: array of [dataKey, label, extractFn]
+  // selectedKey: the group key currently being viewed, to mark as leading
+  // formatLabel: groupKey -> display string
+  // emptyMessage: shown when there is no data at all
+  function renderChampions(container, byGroup, categories, selectedKey, formatLabel, emptyMessage) {
+    const keys = Object.keys(byGroup);
+    if (keys.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'ft-empty';
+      empty.textContent = emptyMessage;
+      container.appendChild(empty);
+      return;
+    }
+    let anyShown = false;
+    categories.forEach(([key, label, extract]) => {
+      let bestKey = null, bestVal = -1;
+      keys.forEach(k => {
+        const val = extract(byGroup[k][key]);
+        if (val > bestVal) { bestVal = val; bestKey = k; }
+      });
+      if (bestVal <= 0) return;
+      anyShown = true;
+      const div = document.createElement('div');
+      const isSelected = bestKey === selectedKey;
+      div.className = 'ft-champion' + (isSelected ? ' ft-champ-leading' : '');
+      const catLine = document.createElement('span');
+      catLine.className = 'ft-champ-cat';
+      catLine.textContent = label;
+      const text = document.createElement('div');
+      text.textContent = formatLabel(bestKey) + ' leads with ' + bestVal + (isSelected ? ' — that\'s the one you\'re viewing' : '');
+      div.appendChild(catLine);
+      div.appendChild(text);
+      container.appendChild(div);
+    });
+    if (!anyShown) {
+      const empty = document.createElement('div');
+      empty.className = 'ft-empty';
+      empty.textContent = emptyMessage;
+      container.appendChild(empty);
+    }
+  }
+
+  function renderMonth() {
+    content.innerHTML = '';
+    const nav = document.createElement('div');
+    nav.className = 'ft-nav';
+    const prev = document.createElement('button');
+    prev.textContent = '‹';
+    prev.addEventListener('click', () => { monthAnchor = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() - 1, 1); render(); });
+    const range = document.createElement('div');
+    range.className = 'ft-range';
+    range.textContent = monthLabel(monthAnchor);
+    const next = document.createElement('button');
+    next.textContent = '›';
+    const isCurrentMonth = monthKey(monthAnchor) === monthKey(new Date());
+    next.disabled = isCurrentMonth;
+    next.style.opacity = next.disabled ? '0.35' : '1';
+    next.addEventListener('click', () => { if (!next.disabled) { monthAnchor = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 1); render(); } });
+    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
+    content.appendChild(nav);
+
+    const byMonth = monthAggregates();
+    const mk = monthKey(monthAnchor);
+    const a = byMonth[mk] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
+    const daysInMonth = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0).getDate();
+
+    content.appendChild(sectionTitle(monthLabel(monthAnchor)));
+    const grid = document.createElement('div');
+    grid.className = 'ft-stat-grid';
+    const stats = [
+      [a.attendanceDays + ' / ' + daysInMonth, 'Days attended a service'],
+      [a.bibleChapters, 'Bible chapters read'],
+      [a.msgReads, 'Message re-reads'],
+      [a.letters.size, 'Letters read'],
+      [a.exerciseDays + ' / ' + daysInMonth, 'Days exercised'],
+      [a.lectureDays + ' / ' + daysInMonth, 'Days at lecture'],
+      [a.evangelism, 'People met or invited'],
+    ];
+    stats.forEach(([num, label]) => {
+      const s = document.createElement('div');
+      s.className = 'ft-stat';
+      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
+      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
+      s.appendChild(n); s.appendChild(l);
+      grid.appendChild(s);
+    });
+    content.appendChild(grid);
+
+    // milestones / champions across all recorded months
+    content.appendChild(sectionTitle('Milestones'));
+    const champSec = document.createElement('div');
+    champSec.className = 'ft-section';
+    const monthCategories = [
+      ['bibleChapters', 'Bible reading', v => v],
+      ['msgReads', 'Message re-reads', v => v],
+      ['letters', 'Letters read', v => v.size],
+      ['attendanceDays', 'Attendance', v => v],
+      ['exerciseDays', 'Exercise', v => v],
+      ['lectureDays', 'Lecture', v => v],
+      ['evangelism', 'Evangelism', v => v],
+    ];
+    renderChampions(
+      champSec, byMonth, monthCategories, mk,
+      (bestMonth) => monthLabel(fromISO(bestMonth + '-01')),
+      'Log a few days to start seeing monthly milestones here.'
+    );
+    content.appendChild(champSec);
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll('.ft-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ft-tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeTab = btn.dataset.tab;
+      render();
+    });
+  });
+
+  // ---------- backup ----------
+  document.getElementById('ft-export-btn').addEventListener('click', exportData);
+  document.getElementById('ft-import-btn').addEventListener('click', () => {
+    document.getElementById('ft-import-file').click();
+  });
+  document.getElementById('ft-import-file').addEventListener('change', (e) => {
+    if (e.target.files && e.target.files[0]) importData(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // ---------- init ----------
+  loadData().then(render);
+})();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

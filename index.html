@@ -176,6 +176,38 @@
     color: var(--ink);
     text-align: center;
   }
+  .ft-stepper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .ft-stepper button {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--card);
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ft-stepper button:active { background: var(--line); }
+  .ft-stepper button:disabled { opacity: 0.35; cursor: default; }
+  .ft-stepper button.ft-step-plus {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .ft-stepper .ft-step-val {
+    min-width: 20px;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 600;
+  }
   .ft-text {
     width: 100%;
     padding: 8px 10px;
@@ -281,6 +313,26 @@
     cursor: pointer;
     padding: 2px 0;
   }
+
+  .ft-reminder-bar {
+    margin-bottom: 14px;
+  }
+  .ft-reminder-bar button {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-size: 12.5px;
+    font-family: inherit;
+    border-radius: 7px;
+    padding: 8px 10px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .ft-reminder-bar button.ft-reminder-on {
+    border-color: var(--success);
+    color: var(--success);
+  }
 </style>
 
 <div id="faith-tracker-root">
@@ -305,6 +357,10 @@
     <button id="ft-export-btn" type="button">Back up data</button>
     <button id="ft-import-btn" type="button">Restore backup</button>
     <input type="file" id="ft-import-file" accept="application/json" style="display:none" />
+  </div>
+
+  <div class="ft-reminder-bar">
+    <button id="ft-reminder-btn" type="button">Enable 8 PM daily reminder</button>
   </div>
 
   <div id="ft-content">
@@ -334,6 +390,10 @@
   function monthKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
   function monthLabel(d) { return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
   function startOfWeek(d) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); r.setHours(0,0,0,0); return r; }
+  function minLogDate() {
+    // Earliest date the user can retro-log: the most recent Sunday.
+    return startOfWeek(new Date());
+  }
   function isFuture(d) { const t = new Date(); t.setHours(0,0,0,0); return d.getTime() > t.getTime(); }
 
   function defaultEntry() {
@@ -450,18 +510,27 @@
       h.textContent = hint;
       labelWrap.appendChild(h);
     }
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.className = 'ft-num';
-    input.min = min || 0;
-    input.value = value;
-    input.addEventListener('change', () => {
-      const v = Math.max(min || 0, parseInt(input.value, 10) || 0);
-      input.value = v;
-      onChange(v);
-    });
+    const floor = min || 0;
+    const stepper = document.createElement('div');
+    stepper.className = 'ft-stepper';
+    const minus = document.createElement('button');
+    minus.type = 'button';
+    minus.textContent = '−';
+    minus.disabled = value <= floor;
+    minus.addEventListener('click', () => { if (value > floor) onChange(value - 1); });
+    const val = document.createElement('span');
+    val.className = 'ft-step-val';
+    val.textContent = value;
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'ft-step-plus';
+    plus.textContent = '+';
+    plus.addEventListener('click', () => { onChange(value + 1); });
+    stepper.appendChild(minus);
+    stepper.appendChild(val);
+    stepper.appendChild(plus);
     row.appendChild(labelWrap);
-    row.appendChild(input);
+    row.appendChild(stepper);
     return row;
   }
 
@@ -476,13 +545,17 @@
     content.innerHTML = '';
     const iso = toISO(viewDate);
     const entry = getEntry(iso);
+    const dow = viewDate.getDay(); // 0 = Sunday, 3 = Wednesday
+    const minDate = minLogDate();
 
     // nav
     const nav = document.createElement('div');
     nav.className = 'ft-nav';
     const prev = document.createElement('button');
     prev.textContent = '‹';
-    prev.addEventListener('click', () => { viewDate = new Date(viewDate.getTime() - DAY_MS); render(); });
+    prev.disabled = viewDate.getTime() <= minDate.getTime();
+    prev.style.opacity = prev.disabled ? '0.35' : '1';
+    prev.addEventListener('click', () => { if (!prev.disabled) { viewDate = new Date(viewDate.getTime() - DAY_MS); render(); } });
     const range = document.createElement('div');
     range.className = 'ft-range';
     range.textContent = fmtLong(viewDate);
@@ -498,9 +571,13 @@
     content.appendChild(sectionTitle('Attendance'));
     const attSec = document.createElement('div');
     attSec.className = 'ft-section';
-    attSec.appendChild(checkRow('Sunday message', null, entry.sunday, v => { entry.sunday = v; saveData(); render(); }));
+    if (dow === 0) {
+      attSec.appendChild(checkRow('Sunday message', null, entry.sunday, v => { entry.sunday = v; saveData(); render(); }));
+    }
     attSec.appendChild(checkRow('Predawn', null, entry.predawn, v => { entry.predawn = v; saveData(); render(); }));
-    attSec.appendChild(checkRow('Wednesday message', null, entry.wednesday, v => { entry.wednesday = v; saveData(); render(); }));
+    if (dow === 3) {
+      attSec.appendChild(checkRow('Wednesday message', null, entry.wednesday, v => { entry.wednesday = v; saveData(); render(); }));
+    }
     const note = document.createElement('div');
     note.className = 'ft-row-hint';
     note.style.marginTop = '8px';
@@ -895,8 +972,72 @@
     e.target.value = '';
   });
 
+  // ---------- 8 PM reminder ----------
+  const REMINDER_KEY = 'faith-tracker-reminder-enabled';
+  let reminderTimer = null;
+  const reminderBtn = document.getElementById('ft-reminder-btn');
+
+  function msUntilNext8pm() {
+    const now = new Date();
+    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0, 0);
+    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
+    return target.getTime() - now.getTime();
+  }
+
+  async function fireReminder() {
+    const body = "Don't forget to log today's faith checklist.";
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification('Faith Checklist', { body, icon: 'icon-192.png', badge: 'icon-192.png' });
+      } else if (Notification.permission === 'granted') {
+        new Notification('Faith Checklist', { body });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function scheduleReminder() {
+    clearTimeout(reminderTimer);
+    reminderTimer = setTimeout(() => { fireReminder(); scheduleReminder(); }, msUntilNext8pm());
+  }
+
+  function updateReminderBtn() {
+    const on = localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
+    reminderBtn.textContent = on ? 'Daily 8 PM reminder is on (tap to turn off)' : 'Enable 8 PM daily reminder';
+    reminderBtn.classList.toggle('ft-reminder-on', on);
+  }
+
+  reminderBtn.addEventListener('click', async () => {
+    const currentlyOn = localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
+    if (currentlyOn) {
+      localStorage.setItem(REMINDER_KEY, 'false');
+      clearTimeout(reminderTimer);
+    } else {
+      if (!('Notification' in window)) {
+        alert("This browser doesn't support notifications, so a reminder can't be scheduled here.");
+        return;
+      }
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (perm === 'granted') {
+        localStorage.setItem(REMINDER_KEY, 'true');
+        scheduleReminder();
+      } else {
+        alert('Notifications were not allowed, so the reminder can\'t be turned on. You can allow them in your browser or phone settings and try again.');
+      }
+    }
+    updateReminderBtn();
+  });
+
   // ---------- init ----------
   loadData().then(render);
+  if ('Notification' in window) {
+    updateReminderBtn();
+    if (localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted') {
+      scheduleReminder();
+    }
+  } else {
+    reminderBtn.style.display = 'none';
+  }
 })();
 
 if ('serviceWorker' in navigator) {

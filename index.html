@@ -402,7 +402,7 @@
       catchupSunday: false, catchupWednesday: false,
       bibleChapters: 0, sundayReads: 0, wednesdayReads: 0,
       letters: [], exercise: false, lecture: false,
-      evangelism: 0, questions: '', questionsAsked: false
+      evangelism: 0, diary: false
     };
   }
 
@@ -676,21 +676,12 @@
     evSec.appendChild(numRow('People met or invited', null, entry.evangelism, v => { entry.evangelism = v; saveData(); render(); }));
     content.appendChild(evSec);
 
-    // questions
-    content.appendChild(sectionTitle('Ask me questions'));
-    const qSec = document.createElement('div');
-    qSec.className = 'ft-section';
-    const qTextRow = document.createElement('div');
-    qTextRow.style.marginBottom = '8px';
-    const qTextarea = document.createElement('textarea');
-    qTextarea.className = 'ft-text';
-    qTextarea.placeholder = 'Questions or thoughts to bring up…';
-    qTextarea.value = entry.questions || '';
-    qTextarea.addEventListener('change', () => { entry.questions = qTextarea.value; saveData(); });
-    qTextRow.appendChild(qTextarea);
-    qSec.appendChild(qTextRow);
-    qSec.appendChild(checkRow('Asked my questions', null, entry.questionsAsked, v => { entry.questionsAsked = v; saveData(); render(); }));
-    content.appendChild(qSec);
+    // diary
+    content.appendChild(sectionTitle('My Diary today'));
+    const diarySec = document.createElement('div');
+    diarySec.className = 'ft-section';
+    diarySec.appendChild(checkRow('Write Diary', null, entry.diary, v => { entry.diary = v; saveData(); render(); }));
+    content.appendChild(diarySec);
 
     // milestones / champions across all recorded days
     content.appendChild(sectionTitle('Milestones'));

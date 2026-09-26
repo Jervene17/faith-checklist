@@ -13,6 +13,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Faith Checklist" />
 <style>html,body{margin:0;padding:0;background:#F6F1E7;}</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <style>
@@ -297,6 +300,85 @@
 
   .ft-loading { color: var(--muted); font-size: 13.5px; padding: 30px 0; text-align: center; }
 
+  #faith-auth-root {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #F6F1E7;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  .ft-auth-card {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .ft-auth-card h1 {
+    font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+    font-size: 24px;
+    color: #232042;
+    margin: 0 0 2px;
+    text-align: center;
+  }
+  .ft-auth-sub {
+    color: #8A8375;
+    font-size: 13px;
+    text-align: center;
+    margin: 0 0 10px;
+  }
+  .ft-auth-card input {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid #DDD3BE;
+    border-radius: 7px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #FBF8F1;
+    color: #232042;
+    box-sizing: border-box;
+  }
+  .ft-auth-primary {
+    background: #D9A441;
+    border: none;
+    color: white;
+    font-weight: 600;
+    font-size: 14.5px;
+    padding: 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .ft-auth-secondary {
+    background: none;
+    border: 1px solid #DDD3BE;
+    color: #232042;
+    font-size: 14px;
+    padding: 11px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .ft-auth-link {
+    background: none;
+    border: none;
+    color: #8A8375;
+    font-size: 12.5px;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 4px 0;
+    font-family: inherit;
+  }
+  .ft-auth-error {
+    color: #B5514A;
+    font-size: 12.5px;
+    min-height: 16px;
+    text-align: center;
+  }
+
   .ft-backup-bar {
     display: flex;
     gap: 8px;
@@ -335,16 +417,36 @@
   }
 </style>
 
-<div id="faith-tracker-root">
+<div id="faith-auth-root">
+  <div class="ft-auth-card">
+    <h1>Faith Checklist</h1>
+    <p class="ft-auth-sub">Sign in to keep your record synced across devices.</p>
+    <input type="email" id="ft-auth-email" class="ft-text" placeholder="Email" autocomplete="email" />
+    <input type="password" id="ft-auth-password" class="ft-text" placeholder="Password" autocomplete="current-password" />
+    <div class="ft-auth-error" id="ft-auth-error"></div>
+    <button id="ft-auth-login-btn" type="button" class="ft-auth-primary">Log in</button>
+    <button id="ft-auth-signup-btn" type="button" class="ft-auth-secondary">Create an account</button>
+    <button id="ft-auth-reset-btn" type="button" class="ft-auth-link">Forgot password?</button>
+  </div>
+</div>
+
+<div id="faith-tracker-root" style="display:none;">
   <div class="ft-header">
     <div>
       <h1>Faith Checklist</h1>
       <div class="ft-sub" id="ft-header-sub">Loading…</div>
     </div>
-    <svg class="ft-sun" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="14" r="5" fill="#D9A441"/>
-      <path d="M12 3v3M4.2 8.2l2.1 2.1M19.8 8.2l-2.1 2.1M2 15h3M19 15h3" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/>
-    </svg>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <svg class="ft-sun" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="14" r="5" fill="#D9A441"/>
+        <path d="M12 3v3M4.2 8.2l2.1 2.1M19.8 8.2l-2.1 2.1M2 15h3M19 15h3" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="ft-backup-bar">
+    <span id="ft-account-email" style="font-size:11.5px; color:var(--muted); margin-right:auto;"></span>
+    <button id="ft-logout-btn" type="button">Log out</button>
   </div>
 
   <div class="ft-tabs">
@@ -370,7 +472,6 @@
 
 <script>
 (function() {
-  const STORAGE_KEY = 'faith-tracker-data';
   const DAY_MS = 86400000;
   let data = null; // { entries: {date: {...}}, letterMax: 170 }
   let activeTab = 'today';
@@ -402,22 +503,58 @@
       catchupSunday: false, catchupWednesday: false,
       bibleChapters: 0, sundayReads: 0, wednesdayReads: 0,
       letters: [], exercise: false, lecture: false,
-      evangelism: 0, diary: false
+      evangelism: 0, diary: false, diaryText: ''
     };
   }
 
+  // ---------- Firebase ----------
+  // Fill this in with your own project's config from the Firebase console
+  // (Project settings → General → Your apps → Web app).
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAnX0L3qSxcRohz7USm4ZU7dY7wJHIe08",
+    authDomain: "faith-checklist.firebaseapp.com",
+    projectId: "faith-checklist",
+    storageBucket: "faith-checklist.firebasestorage.app",
+    messagingSenderId: "878282088276",
+    appId: "1:878282088276:web:e6d41f9be69ca01d7172c1",
+    measurementId: "G-WEP7FB5ZBP"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
+  const LEGACY_STORAGE_KEY = 'faith-tracker-data';
+  let currentUser = null;
+
+  function userDocRef() {
+    return db.collection('users').doc(currentUser.uid);
+  }
+
   async function loadData() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        data = JSON.parse(raw);
-        if (!data.entries) data.entries = {};
-        if (typeof data.letterMax !== 'number') data.letterMax = 170;
-      } else {
-        data = { entries: {}, letterMax: 170 };
-      }
-    } catch (e) {
+    const snap = await userDocRef().get();
+    if (snap.exists) {
+      data = snap.data();
+      if (!data.entries) data.entries = {};
+      if (typeof data.letterMax !== 'number') data.letterMax = 170;
+    } else {
+      // brand-new account: start empty, but offer to bring in any data
+      // already sitting on this device from before accounts existed.
       data = { entries: {}, letterMax: 170 };
+      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyRaw) {
+        try {
+          const legacy = JSON.parse(legacyRaw);
+          if (legacy && legacy.entries && Object.keys(legacy.entries).length > 0) {
+            const bring = confirm('We found existing checklist data on this device. Import it into your new account?');
+            if (bring) {
+              data = legacy;
+              if (typeof data.letterMax !== 'number') data.letterMax = 170;
+            }
+          }
+        } catch (e) { /* ignore unreadable legacy data */ }
+      }
+      await userDocRef().set(data);
     }
   }
 
@@ -425,8 +562,7 @@
   function saveData() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-      catch (e) { console.error('Save failed', e); }
+      userDocRef().set(data).catch((e) => console.error('Save failed', e));
     }, 150);
   }
 
@@ -680,6 +816,18 @@
     content.appendChild(sectionTitle('My Diary today'));
     const diarySec = document.createElement('div');
     diarySec.className = 'ft-section';
+    const diaryLabel = document.createElement('div');
+    diaryLabel.className = 'ft-row-label';
+    diaryLabel.style.marginBottom = '6px';
+    diaryLabel.textContent = 'Dear Lord';
+    const diaryTextarea = document.createElement('textarea');
+    diaryTextarea.className = 'ft-text';
+    diaryTextarea.style.marginBottom = '4px';
+    diaryTextarea.placeholder = 'Write today\'s diary entry…';
+    diaryTextarea.value = entry.diaryText || '';
+    diaryTextarea.addEventListener('change', () => { entry.diaryText = diaryTextarea.value; saveData(); });
+    diarySec.appendChild(diaryLabel);
+    diarySec.appendChild(diaryTextarea);
     diarySec.appendChild(checkRow('Write Diary', null, entry.diary, v => { entry.diary = v; saveData(); render(); }));
     content.appendChild(diarySec);
 
@@ -1019,16 +1167,77 @@
     updateReminderBtn();
   });
 
-  // ---------- init ----------
-  loadData().then(render);
-  if ('Notification' in window) {
-    updateReminderBtn();
-    if (localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted') {
-      scheduleReminder();
-    }
-  } else {
-    reminderBtn.style.display = 'none';
+  // ---------- auth screen ----------
+  const authRoot = document.getElementById('faith-auth-root');
+  const emailInput = document.getElementById('ft-auth-email');
+  const passwordInput = document.getElementById('ft-auth-password');
+  const authError = document.getElementById('ft-auth-error');
+  const accountEmailLabel = document.getElementById('ft-account-email');
+
+  function authErrorMessage(err) {
+    const code = err && err.code;
+    if (code === 'auth/invalid-email') return 'That email address looks invalid.';
+    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Incorrect email or password.';
+    if (code === 'auth/email-already-in-use') return 'An account already exists with that email — try logging in instead.';
+    if (code === 'auth/weak-password') return 'Please use a password with at least 6 characters.';
+    return (err && err.message) || 'Something went wrong. Please try again.';
   }
+
+  document.getElementById('ft-auth-login-btn').addEventListener('click', async () => {
+    authError.textContent = '';
+    try {
+      await auth.signInWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
+    } catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+
+  document.getElementById('ft-auth-signup-btn').addEventListener('click', async () => {
+    authError.textContent = '';
+    try {
+      await auth.createUserWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
+    } catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+
+  document.getElementById('ft-auth-reset-btn').addEventListener('click', async () => {
+    authError.textContent = '';
+    const email = emailInput.value.trim();
+    if (!email) { authError.textContent = 'Enter your email above first, then tap this again.'; return; }
+    try {
+      await auth.sendPasswordResetEmail(email);
+      authError.textContent = 'Password reset email sent.';
+    } catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+
+  document.getElementById('ft-logout-btn').addEventListener('click', () => {
+    clearTimeout(reminderTimer);
+    auth.signOut();
+  });
+
+  // ---------- init ----------
+  auth.onAuthStateChanged(async (user) => {
+    currentUser = user;
+    if (user) {
+      authRoot.style.display = 'none';
+      root.style.display = '';
+      accountEmailLabel.textContent = user.email || '';
+      emailInput.value = '';
+      passwordInput.value = '';
+      authError.textContent = '';
+      await loadData();
+      render();
+      if ('Notification' in window) {
+        updateReminderBtn();
+        if (localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted') {
+          scheduleReminder();
+        }
+      } else {
+        reminderBtn.style.display = 'none';
+      }
+    } else {
+      root.style.display = 'none';
+      authRoot.style.display = '';
+      data = null;
+    }
+  });
 })();
 
 if ('serviceWorker' in navigator) {

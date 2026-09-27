@@ -1,4 +1,4 @@
-const CACHE_NAME = 'faith-checklist-v1';
+const CACHE_NAME = 'faith-checklist-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -25,6 +25,9 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  // Only cache our own static files. Auth/Firestore calls to Google's
+  // servers (and anything else cross-origin) should pass straight through.
+  if (new URL(event.request.url).origin !== self.location.origin) return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const network = fetch(event.request)

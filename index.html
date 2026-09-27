@@ -421,6 +421,7 @@
   <div class="ft-auth-card">
     <h1>Faith Checklist</h1>
     <p class="ft-auth-sub">Sign in to keep your record synced across devices.</p>
+    <input type="text" id="ft-auth-name" class="ft-text" placeholder="Display name (shown on the leaderboard)" autocomplete="name" />
     <input type="email" id="ft-auth-email" class="ft-text" placeholder="Email" autocomplete="email" />
     <input type="password" id="ft-auth-password" class="ft-text" placeholder="Password" autocomplete="current-password" />
     <div class="ft-auth-error" id="ft-auth-error"></div>
@@ -451,8 +452,9 @@
 
   <div class="ft-tabs">
     <button class="ft-tab active" data-tab="today">Today</button>
-    <button class="ft-tab" data-tab="week">This Week</button>
-    <button class="ft-tab" data-tab="month">This Month</button>
+    <button class="ft-tab" data-tab="week">Week</button>
+    <button class="ft-tab" data-tab="month">Month</button>
+    <button class="ft-tab" data-tab="year">Year</button>
   </div>
 
   <div class="ft-backup-bar">
@@ -478,6 +480,7 @@
   let viewDate = new Date(); // for today tab
   let weekAnchor = new Date(); // any date within viewed week
   let monthAnchor = new Date(); // any date within viewed month
+  let yearAnchor = new Date(); // any date within viewed year
 
   const root = document.getElementById('faith-tracker-root');
   const content = document.getElementById('ft-content');
@@ -511,13 +514,12 @@
   // Fill this in with your own project's config from the Firebase console
   // (Project settings → General → Your apps → Web app).
   const firebaseConfig = {
-    apiKey: "AIzaSyAAnX0L3qSxcRohz7USm4ZU7dY7wJHIe08",
-    authDomain: "faith-checklist.firebaseapp.com",
-    projectId: "faith-checklist",
-    storageBucket: "faith-checklist.firebasestorage.app",
-    messagingSenderId: "878282088276",
-    appId: "1:878282088276:web:e6d41f9be69ca01d7172c1",
-    measurementId: "G-WEP7FB5ZBP"
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
   };
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
@@ -563,7 +565,188 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       userDocRef().set(data).catch((e) => console.error('Save failed', e));
+      updateLeaderboard(toISO(viewDate));
     }, 150);
+  }
+
+  // The fields every leaderboard row carries, shared across week/month/year.
+  const LEADERBOARD_CATEGORIES = [
+    ['bibleChapters', 'Bible reading'],
+    ['msgReads', 'Message re-reads'],
+    ['lettersCount', 'Letters read'],
+    ['attendanceDays', 'Attendance'],
+    ['exerciseDays', 'Exercise'],
+    ['lectureDays', 'Lecture'],
+    ['evangelism', 'Evangelism'],
+  ];
+
+  function computeAggregateForPeriod(periodType, iso) {
+    let periodKey, groupKeyFn;
+    if (periodType === 'week') {
+      periodKey = toISO(startOfWeek(fromISO(iso)));
+      groupKeyFn = (i) => toISO(startOfWeek(fromISO(i)));
+    } else if (periodType === 'month') {
+      periodKey = iso.slice(0, 7);
+      groupKeyFn = (i) => i.slice(0, 7);
+    } else {
+      periodKey = iso.slice(0, 4);
+      groupKeyFn = (i) => i.slice(0, 4);
+    }
+    const byGroup = aggregateEntries(groupKeyFn);
+    const a = byGroup[periodKey] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
+    return {
+      periodKey,
+      bibleChapters: a.bibleChapters,
+      msgReads: a.msgReads,
+      lettersCount: a.letters.size,
+      attendanceDays: a.attendanceDays,
+      exerciseDays: a.exerciseDays,
+      lectureDays: a.lectureDays,
+      evangelism: a.evangelism
+    };
+  }
+
+  async function updateLeaderboard(iso) {
+    if (!currentUser) return;
+    const displayName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Member');
+    try {
+      const batch = db.batch();
+      ['week', 'month', 'year'].forEach((periodType) => {
+        const stats = computeAggregateForPeriod(periodType, iso);
+        const docId = periodType + '_' + stats.periodKey + '_' + currentUser.uid;
+        const ref = db.collection('leaderboard').doc(docId);
+        batch.set(ref, {
+          uid: currentUser.uid,
+          displayName,
+          periodType,
+          periodKey: stats.periodKey,
+          bibleChapters: stats.bibleChapters,
+          msgReads: stats.msgReads,
+          lettersCount: stats.lettersCount,
+          attendanceDays: stats.attendanceDays,
+          exerciseDays: stats.exerciseDays,
+          lectureDays: stats.lectureDays,
+          evangelism: stats.evangelism,
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      });
+      await batch.commit();
+    } catch (e) { console.error('Leaderboard update failed', e); }
+  }
+
+  async function fetchLeaderboard(periodType, periodKey) {
+    try {
+      const snap = await db.collection('leaderboard')
+        .where('periodType', '==', periodType)
+        .where('periodKey', '==', periodKey)
+        .get();
+      return snap.docs.map((d) => d.data());
+    } catch (e) {
+      console.error('Leaderboard fetch failed', e);
+      return [];
+    }
+  }
+
+  // Renders category leaders + an overall ranking for one period, comparing
+  // everyone who has logged data for it (not just the signed-in person).
+  async function renderGroupLeaderboard(container, periodType, periodKey) {
+    container.innerHTML = '<div class="ft-empty">Loading group standings…</div>';
+    const docs = await fetchLeaderboard(periodType, periodKey);
+    if (!container.isConnected) return; // tab changed before this resolved
+    container.innerHTML = '';
+    if (docs.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'ft-empty';
+      empty.textContent = 'No one has logged data for this period yet.';
+      container.appendChild(empty);
+      return;
+    }
+
+    LEADERBOARD_CATEGORIES.forEach(([key, label]) => {
+      let best = null;
+      docs.forEach((d) => { if (!best || (d[key] || 0) > (best[key] || 0)) best = d; });
+      if (!best || (best[key] || 0) <= 0) return;
+      const div = document.createElement('div');
+      const isYou = best.uid === currentUser.uid;
+      div.className = 'ft-champion' + (isYou ? ' ft-champ-leading' : '');
+      const catLine = document.createElement('span');
+      catLine.className = 'ft-champ-cat';
+      catLine.textContent = label;
+      const text = document.createElement('div');
+      text.textContent = (best.displayName || 'Member') + ' leads with ' + best[key] + (isYou ? ' — that\'s you' : '');
+      div.appendChild(catLine);
+      div.appendChild(text);
+      container.appendChild(div);
+    });
+
+    const maxes = {};
+    LEADERBOARD_CATEGORIES.forEach(([key]) => {
+      let m = 0;
+      docs.forEach((d) => { const v = d[key] || 0; if (v > m) m = v; });
+      maxes[key] = m;
+    });
+    const ranked = docs.map((d) => {
+      let sum = 0, count = 0;
+      LEADERBOARD_CATEGORIES.forEach(([key]) => {
+        const max = maxes[key];
+        if (max > 0) { sum += ((d[key] || 0) / max) * 100; count++; }
+      });
+      return Object.assign({}, d, { score: count > 0 ? Math.round(sum / count) : 0 });
+    }).sort((a, b) => b.score - a.score);
+
+    const rankTitle = document.createElement('p');
+    rankTitle.className = 'ft-section-title';
+    rankTitle.style.marginTop = '16px';
+    rankTitle.textContent = 'Overall ranking';
+    container.appendChild(rankTitle);
+
+    ranked.slice(0, 5).forEach((d, i) => {
+      container.appendChild(leaderboardRow(i + 1, d));
+    });
+    const yourIndex = ranked.findIndex((d) => d.uid === currentUser.uid);
+    if (yourIndex >= 5) {
+      const row = leaderboardRow(yourIndex + 1, ranked[yourIndex]);
+      row.style.borderTop = '1px dashed var(--line)';
+      row.style.marginTop = '6px';
+      row.style.paddingTop = '11px';
+      container.appendChild(row);
+    }
+  }
+
+  function leaderboardRow(rank, d) {
+    const row = document.createElement('div');
+    row.className = 'ft-row';
+    const isYou = d.uid === currentUser.uid;
+    const label = document.createElement('div');
+    label.className = 'ft-row-label';
+    label.textContent = '#' + rank + ' ' + (d.displayName || 'Member') + (isYou ? ' (you)' : '');
+    const score = document.createElement('div');
+    score.style.fontWeight = '600';
+    score.textContent = d.score;
+    row.appendChild(label);
+    row.appendChild(score);
+    return row;
+  }
+
+  // Adds a normalized 0-100 "overallScore" field to each entry in byGroup,
+  // relative to the best value seen for each category within that same
+  // map — used for "best overall" personal-history milestones.
+  function addOverallScores(byGroup, categories) {
+    const maxes = {};
+    categories.forEach(([key, , extract]) => {
+      let m = 0;
+      Object.values(byGroup).forEach((a) => { const v = extract(a[key]); if (v > m) m = v; });
+      maxes[key] = m;
+    });
+    Object.keys(byGroup).forEach((k) => {
+      const a = byGroup[k];
+      let sum = 0, count = 0;
+      categories.forEach(([key, , extract]) => {
+        const max = maxes[key];
+        if (max > 0) { sum += (extract(a[key]) / max) * 100; count++; }
+      });
+      a.overallScore = count > 0 ? Math.round(sum / count) : 0;
+    });
   }
 
   function exportData() {
@@ -611,7 +794,8 @@
     headerSub.textContent = fmtLong(new Date());
     if (activeTab === 'today') renderToday();
     else if (activeTab === 'week') renderWeek();
-    else renderMonth();
+    else if (activeTab === 'month') renderMonth();
+    else renderYear();
   }
 
   function checkRow(label, hint, checked, onToggle) {
@@ -843,8 +1027,10 @@
       ['attendanceCount', 'Attendance', v => v],
       ['evangelism', 'Evangelism', v => v],
     ];
+    addOverallScores(byDay, dayCategories);
+    const dayCategoriesWithOverall = dayCategories.concat([['overallScore', 'Overall average', v => v]]);
     renderChampions(
-      champSec, byDay, dayCategories, iso,
+      champSec, byDay, dayCategoriesWithOverall, iso,
       (bestIso) => fmtLong(fromISO(bestIso)),
       'Log a day to start seeing daily milestones here.'
     );
@@ -916,7 +1102,7 @@
     content.appendChild(grid);
 
     // milestones / champions across all recorded weeks
-    content.appendChild(sectionTitle('Milestones'));
+    content.appendChild(sectionTitle('Your milestones'));
     const champSec = document.createElement('div');
     champSec.className = 'ft-section';
     const byWeek = weekAggregatesAll();
@@ -929,8 +1115,10 @@
       ['lectureDays', 'Lecture', v => v],
       ['evangelism', 'Evangelism', v => v],
     ];
+    addOverallScores(byWeek, weekCategories);
+    const weekCategoriesWithOverall = weekCategories.concat([['overallScore', 'Overall average', v => v]]);
     renderChampions(
-      champSec, byWeek, weekCategories, toISO(start),
+      champSec, byWeek, weekCategoriesWithOverall, toISO(start),
       (bestWeekStartIso) => {
         const s = fromISO(bestWeekStartIso);
         const e = new Date(s.getTime() + 6 * DAY_MS);
@@ -939,6 +1127,13 @@
       'Log a few days to start seeing weekly milestones here.'
     );
     content.appendChild(champSec);
+
+    // group leaderboard for this specific week
+    content.appendChild(sectionTitle('Group leaderboard'));
+    const groupSec = document.createElement('div');
+    groupSec.className = 'ft-section';
+    content.appendChild(groupSec);
+    renderGroupLeaderboard(groupSec, 'week', toISO(start));
   }
 
   function aggregateEntries(groupKeyFn) {
@@ -1071,7 +1266,7 @@
     content.appendChild(grid);
 
     // milestones / champions across all recorded months
-    content.appendChild(sectionTitle('Milestones'));
+    content.appendChild(sectionTitle('Your milestones'));
     const champSec = document.createElement('div');
     champSec.className = 'ft-section';
     const monthCategories = [
@@ -1083,12 +1278,102 @@
       ['lectureDays', 'Lecture', v => v],
       ['evangelism', 'Evangelism', v => v],
     ];
+    addOverallScores(byMonth, monthCategories);
+    const monthCategoriesWithOverall = monthCategories.concat([['overallScore', 'Overall average', v => v]]);
     renderChampions(
-      champSec, byMonth, monthCategories, mk,
+      champSec, byMonth, monthCategoriesWithOverall, mk,
       (bestMonth) => monthLabel(fromISO(bestMonth + '-01')),
       'Log a few days to start seeing monthly milestones here.'
     );
     content.appendChild(champSec);
+
+    // group leaderboard for this specific month
+    content.appendChild(sectionTitle('Group leaderboard'));
+    const groupSec = document.createElement('div');
+    groupSec.className = 'ft-section';
+    content.appendChild(groupSec);
+    renderGroupLeaderboard(groupSec, 'month', mk);
+  }
+
+  function yearAggregatesAll() {
+    return aggregateEntries(iso => iso.slice(0, 4));
+  }
+
+  function renderYear() {
+    content.innerHTML = '';
+    const nav = document.createElement('div');
+    nav.className = 'ft-nav';
+    const prev = document.createElement('button');
+    prev.textContent = '‹';
+    prev.addEventListener('click', () => { yearAnchor = new Date(yearAnchor.getFullYear() - 1, 0, 1); render(); });
+    const range = document.createElement('div');
+    range.className = 'ft-range';
+    range.textContent = String(yearAnchor.getFullYear());
+    const next = document.createElement('button');
+    next.textContent = '›';
+    const isCurrentYear = yearAnchor.getFullYear() === new Date().getFullYear();
+    next.disabled = isCurrentYear;
+    next.style.opacity = next.disabled ? '0.35' : '1';
+    next.addEventListener('click', () => { if (!next.disabled) { yearAnchor = new Date(yearAnchor.getFullYear() + 1, 0, 1); render(); } });
+    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
+    content.appendChild(nav);
+
+    const byYear = yearAggregatesAll();
+    const yk = String(yearAnchor.getFullYear());
+    const a = byYear[yk] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
+    const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+    const daysInYear = isLeap(yearAnchor.getFullYear()) ? 366 : 365;
+
+    content.appendChild(sectionTitle(yk));
+    const grid = document.createElement('div');
+    grid.className = 'ft-stat-grid';
+    const stats = [
+      [a.attendanceDays + ' / ' + daysInYear, 'Days attended a service'],
+      [a.bibleChapters, 'Bible chapters read'],
+      [a.msgReads, 'Message re-reads'],
+      [a.letters.size, 'Letters read'],
+      [a.exerciseDays + ' / ' + daysInYear, 'Days exercised'],
+      [a.lectureDays + ' / ' + daysInYear, 'Days at lecture'],
+      [a.evangelism, 'People met or invited'],
+    ];
+    stats.forEach(([num, label]) => {
+      const s = document.createElement('div');
+      s.className = 'ft-stat';
+      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
+      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
+      s.appendChild(n); s.appendChild(l);
+      grid.appendChild(s);
+    });
+    content.appendChild(grid);
+
+    // milestones / champions across all recorded years
+    content.appendChild(sectionTitle('Your milestones'));
+    const champSec = document.createElement('div');
+    champSec.className = 'ft-section';
+    const yearCategories = [
+      ['bibleChapters', 'Bible reading', v => v],
+      ['msgReads', 'Message re-reads', v => v],
+      ['letters', 'Letters read', v => v.size],
+      ['attendanceDays', 'Attendance', v => v],
+      ['exerciseDays', 'Exercise', v => v],
+      ['lectureDays', 'Lecture', v => v],
+      ['evangelism', 'Evangelism', v => v],
+    ];
+    addOverallScores(byYear, yearCategories);
+    const yearCategoriesWithOverall = yearCategories.concat([['overallScore', 'Overall average', v => v]]);
+    renderChampions(
+      champSec, byYear, yearCategoriesWithOverall, yk,
+      (bestYear) => bestYear,
+      'Log a few months to start seeing yearly milestones here.'
+    );
+    content.appendChild(champSec);
+
+    // group leaderboard for this specific year
+    content.appendChild(sectionTitle('Group leaderboard'));
+    const groupSec = document.createElement('div');
+    groupSec.className = 'ft-section';
+    content.appendChild(groupSec);
+    renderGroupLeaderboard(groupSec, 'year', yk);
   }
 
   // ---------- tabs ----------
@@ -1169,6 +1454,7 @@
 
   // ---------- auth screen ----------
   const authRoot = document.getElementById('faith-auth-root');
+  const nameInput = document.getElementById('ft-auth-name');
   const emailInput = document.getElementById('ft-auth-email');
   const passwordInput = document.getElementById('ft-auth-password');
   const authError = document.getElementById('ft-auth-error');
@@ -1192,8 +1478,11 @@
 
   document.getElementById('ft-auth-signup-btn').addEventListener('click', async () => {
     authError.textContent = '';
+    const name = nameInput.value.trim();
+    if (!name) { authError.textContent = 'Please enter a display name — it\'s what others will see on the leaderboard.'; return; }
     try {
-      await auth.createUserWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
+      const cred = await auth.createUserWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
+      await cred.user.updateProfile({ displayName: name });
     } catch (e) { authError.textContent = authErrorMessage(e); }
   });
 
@@ -1218,7 +1507,8 @@
     if (user) {
       authRoot.style.display = 'none';
       root.style.display = '';
-      accountEmailLabel.textContent = user.email || '';
+      renderAccountLabel();
+      nameInput.value = '';
       emailInput.value = '';
       passwordInput.value = '';
       authError.textContent = '';
@@ -1238,6 +1528,31 @@
       data = null;
     }
   });
+
+  function renderAccountLabel() {
+    accountEmailLabel.innerHTML = '';
+    if (currentUser.displayName) {
+      accountEmailLabel.textContent = currentUser.displayName;
+      return;
+    }
+    // Accounts created before display names existed won't have one yet.
+    const span = document.createElement('span');
+    span.textContent = 'No display name set — ';
+    const link = document.createElement('a');
+    link.href = '#';
+    link.textContent = 'add one for the leaderboard';
+    link.style.color = 'var(--accent)';
+    link.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const name = prompt('Display name (shown on the leaderboard):');
+      if (name && name.trim()) {
+        await currentUser.updateProfile({ displayName: name.trim() });
+        renderAccountLabel();
+      }
+    });
+    span.appendChild(link);
+    accountEmailLabel.appendChild(span);
+  }
 })();
 
 if ('serviceWorker' in navigator) {

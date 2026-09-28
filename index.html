@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Faith Checklist</title>
-<meta name="description" content="A daily, weekly, and monthly faith practice tracker." />
+<meta name="description" content="A daily, weekly, monthly and yearly faith practice tracker." />
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#F6F1E7" />
 <link rel="icon" href="icon-192.png" />
@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 </head>
 <body>
 <style>
@@ -415,13 +416,52 @@
     border-color: var(--success);
     color: var(--success);
   }
-</style>
 
+  .ft-tab { font-size: 13px; padding: 9px 2px; }
+
+  .ft-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .ft-pill {
+    background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 999px; padding: 5px 12px; font-size: 12.5px;
+    font-family: inherit; cursor: pointer;
+  }
+  .ft-pill.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  .ft-badge-row { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .ft-badge-row:last-child { border-bottom: none; }
+  .ft-badge-name { font-weight: 600; display: block; }
+  .ft-badge-row.mine .ft-badge-name { color: var(--success); }
+  .ft-badge-winner { color: var(--muted); font-size: 12.5px; }
+
+  .ft-btn {
+    background: var(--card); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 7px; padding: 8px 12px; font-size: 13px;
+    font-family: inherit; cursor: pointer;
+  }
+  .ft-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .ft-btn:disabled { opacity: 0.5; }
+  .ft-note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 6px 0; }
+  .ft-inline { display: flex; gap: 8px; margin-top: 8px; }
+  .ft-inline input { flex: 1; }
+  .ft-stack { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .ft-msg { color: #B5514A; font-size: 12.5px; min-height: 16px; }
+  .ft-link {
+    background: none; border: none; color: var(--muted); text-decoration: underline;
+    font-size: 11.5px; cursor: pointer; font-family: inherit; padding: 2px 0;
+  }
+  .ft-diary-entry { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .ft-diary-date { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .ft-diary-text { font-size: 14px; white-space: pre-wrap; line-height: 1.5; }
+  .ft-big-title {
+    font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+    font-size: 19px; font-weight: 600; margin: 4px 0 4px;
+  }
+</style>
 <div id="faith-auth-root">
   <div class="ft-auth-card">
     <h1>Faith Checklist</h1>
     <p class="ft-auth-sub">Sign in to keep your record synced across devices.</p>
-    <input type="text" id="ft-auth-name" class="ft-text" placeholder="Display name (shown on the leaderboard)" autocomplete="name" />
+    <input type="text" id="ft-auth-name" class="ft-text" placeholder="Display name (only needed to create an account)" autocomplete="name" />
     <input type="email" id="ft-auth-email" class="ft-text" placeholder="Email" autocomplete="email" />
     <input type="password" id="ft-auth-password" class="ft-text" placeholder="Password" autocomplete="current-password" />
     <div class="ft-auth-error" id="ft-auth-error"></div>
@@ -437,319 +477,810 @@
       <h1>Faith Checklist</h1>
       <div class="ft-sub" id="ft-header-sub">Loading…</div>
     </div>
-    <div style="display:flex; align-items:center; gap:10px;">
-      <svg class="ft-sun" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="14" r="5" fill="#D9A441"/>
-        <path d="M12 3v3M4.2 8.2l2.1 2.1M19.8 8.2l-2.1 2.1M2 15h3M19 15h3" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/>
-      </svg>
-    </div>
+    <svg class="ft-sun" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="14" r="5" fill="#D9A441"/>
+      <path d="M12 3v3M4.2 8.2l2.1 2.1M19.8 8.2l-2.1 2.1M2 15h3M19 15h3" stroke="#D9A441" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
   </div>
 
-  <div class="ft-backup-bar">
+  <div class="ft-backup-bar" id="ft-account-bar">
     <span id="ft-account-email" style="font-size:11.5px; color:var(--muted); margin-right:auto;"></span>
     <button id="ft-logout-btn" type="button">Log out</button>
   </div>
 
-  <div class="ft-tabs">
+  <div class="ft-tabs" id="ft-tabs">
     <button class="ft-tab active" data-tab="today">Today</button>
     <button class="ft-tab" data-tab="week">Week</button>
     <button class="ft-tab" data-tab="month">Month</button>
     <button class="ft-tab" data-tab="year">Year</button>
+    <button class="ft-tab" data-tab="more">More</button>
   </div>
 
-  <div class="ft-backup-bar">
-    <button id="ft-export-btn" type="button">Back up data</button>
-    <button id="ft-import-btn" type="button">Restore backup</button>
-    <input type="file" id="ft-import-file" accept="application/json" style="display:none" />
-  </div>
-
-  <div class="ft-reminder-bar">
-    <button id="ft-reminder-btn" type="button">Enable 8 PM daily reminder</button>
-  </div>
-
-  <div id="ft-content">
-    <div class="ft-loading">Loading your checklist…</div>
-  </div>
+  <div id="ft-content"><div class="ft-loading">Loading your checklist…</div></div>
 </div>
 
 <script>
-(function() {
-  const DAY_MS = 86400000;
-  let data = null; // { entries: {date: {...}}, letterMax: 170 }
-  let activeTab = 'today';
-  let viewDate = new Date(); // for today tab
-  let weekAnchor = new Date(); // any date within viewed week
-  let monthAnchor = new Date(); // any date within viewed month
-  let yearAnchor = new Date(); // any date within viewed year
+(function () {
+  'use strict';
 
-  const root = document.getElementById('faith-tracker-root');
-  const content = document.getElementById('ft-content');
-  const headerSub = document.getElementById('ft-header-sub');
-
+  // ================= helpers =================
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
   function toISO(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function fromISO(s) { const [y,m,d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
+  function fromISO(s) { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
   function fmtLong(d) { return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }); }
   function fmtShort(d) { return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
-  function monthKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
   function monthLabel(d) { return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
-  function startOfWeek(d) { const r = new Date(d); r.setDate(r.getDate() - r.getDay()); r.setHours(0,0,0,0); return r; }
-  function minLogDate() {
-    // Earliest date the user can retro-log: the most recent Sunday.
-    return startOfWeek(new Date());
+  function startOfWeek(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()); }
+  // Retro-logging window: from the most recent Sunday up to today.
+  function minLogDate() { return startOfWeek(new Date()); }
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
   }
-  function isFuture(d) { const t = new Date(); t.setHours(0,0,0,0); return d.getTime() > t.getTime(); }
+
+  // ================= badge / metric definitions =================
+  const lectureCount = (e) => typeof e.lecture === 'number' ? e.lecture : (e.lecture ? 1 : 0);
+  const METRICS = [
+    { key: 'predawn',    label: 'Predawn',                       badge: 'Morning star',             get: (e) => e.predawn ? 1 : 0 },
+    { key: 'sunday',     label: 'Sunday message attendance',     badge: "Lord's glory",             get: (e) => e.sunday ? 1 : 0 },
+    { key: 'wednesday',  label: 'Wednesday message attendance',  badge: 'Win and win again',        get: (e) => e.wednesday ? 1 : 0 },
+    { key: 'bible',      label: 'Bible chapters',                badge: 'LifeScrolling',            get: (e) => e.bibleChapters || 0, daily: true },
+    { key: 'exercise',   label: 'Exercise',                      badge: 'Strong body for the Lord', get: (e) => e.exercise ? 1 : 0 },
+    { key: 'catchup',    label: 'Catch-ups',                     badge: 'Unshaken',                 get: (e) => (e.catchupSunday ? 1 : 0) + (e.catchupWednesday ? 1 : 0) },
+    { key: 'diary',      label: 'Diary days',                    badge: 'Close to the Lord',        get: (e) => e.diary ? 1 : 0 },
+    { key: 'letters',    label: 'Holy Spirit letters',           badge: 'Holy Spirit',              get: null, daily: true },
+    { key: 'messages',   label: 'Message re-reads',              badge: 'Word of life',             get: (e) => (e.sundayReads || 0) + (e.wednesdayReads || 0), daily: true },
+    { key: 'evangelism', label: 'People met or invited',         badge: 'Loving lives',             get: (e) => e.evangelism || 0, daily: true },
+    { key: 'lecture',    label: 'Lectures',                      badge: 'Truth',                    get: lectureCount, daily: true },
+  ];
+  const badgeName = (m) => m.badge + ' badge';
+
+  function aggregateList(list) {
+    const a = {};
+    METRICS.forEach((m) => {
+      if (m.key === 'letters') {
+        const s = new Set();
+        list.forEach((e) => (e.letters || []).forEach((n) => s.add(n)));
+        a.letters = s.size;
+      } else {
+        a[m.key] = list.reduce((sum, e) => sum + m.get(e), 0);
+      }
+    });
+    return a;
+  }
+
+  function aggregateEntries(groupKeyFn) {
+    const groups = {};
+    Object.keys(data.entries).forEach((iso) => {
+      const k = groupKeyFn(iso);
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(data.entries[iso]);
+    });
+    const out = {};
+    Object.keys(groups).forEach((k) => { out[k] = aggregateList(groups[k]); });
+    return out;
+  }
+
+  function dayAggregates() {
+    const out = {};
+    Object.keys(data.entries).forEach((iso) => { out[iso] = aggregateList([data.entries[iso]]); });
+    return out;
+  }
+
+  const PERIODS = {
+    week: {
+      keyOf: (iso) => toISO(startOfWeek(fromISO(iso))),
+      shift: (d, n) => addDays(d, 7 * n),
+      label: (k) => { const s = fromISO(k); return fmtShort(s) + ' – ' + fmtShort(addDays(s, 6)); },
+    },
+    month: {
+      keyOf: (iso) => iso.slice(0, 7),
+      shift: (d, n) => new Date(d.getFullYear(), d.getMonth() + n, 1),
+      label: (k) => monthLabel(fromISO(k + '-01')),
+    },
+    year: {
+      keyOf: (iso) => iso.slice(0, 4),
+      shift: (d, n) => new Date(d.getFullYear() + n, 0, 1),
+      label: (k) => k,
+    },
+  };
+
+  // Adds a 0-100 "overall" score to each group, relative to the best value
+  // seen for each metric in that same set.
+  function addOverallScores(byGroup, metrics) {
+    const maxes = {};
+    metrics.forEach((m) => {
+      let mx = 0;
+      Object.keys(byGroup).forEach((k) => { if ((byGroup[k][m.key] || 0) > mx) mx = byGroup[k][m.key]; });
+      maxes[m.key] = mx;
+    });
+    Object.keys(byGroup).forEach((k) => {
+      let sum = 0, c = 0;
+      metrics.forEach((m) => {
+        if (maxes[m.key] > 0) { sum += ((byGroup[k][m.key] || 0) / maxes[m.key]) * 100; c++; }
+      });
+      byGroup[k].overall = c ? Math.round(sum / c) : 0;
+    });
+  }
+
+  // ================= state =================
+  let data = null;
+  let currentUser = null;
+  let activeTab = 'today';
+  let viewDate = new Date();
+  const anchors = { week: new Date(), month: new Date(), year: new Date() };
+  let allGroups = [];
+  let awardScope = 'all';
+  let diaryKey = null;
+  let reminderTimer = null;
+
+  const root = document.getElementById('faith-tracker-root');
+  const authRoot = document.getElementById('faith-auth-root');
+  const content = document.getElementById('ft-content');
+  const tabsEl = document.getElementById('ft-tabs');
+  const headerSub = document.getElementById('ft-header-sub');
+  const accountLabel = document.getElementById('ft-account-email');
+  const nameInput = document.getElementById('ft-auth-name');
+  const emailInput = document.getElementById('ft-auth-email');
+  const passwordInput = document.getElementById('ft-auth-password');
+  const authError = document.getElementById('ft-auth-error');
+
+  // ================= firebase =================
+  const cfg = window.FAITH_FIREBASE_CONFIG || {};
+  if (!cfg.apiKey || String(cfg.apiKey).indexOf('YOUR_') === 0) {
+    authError.textContent = 'This app is not connected to Firebase yet. Fill in firebase-config.js.';
+  }
+  firebase.initializeApp(cfg);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+  db.enablePersistence({ synchronizeTabs: true }).catch(function () {});
+
+  const LEGACY_KEY = 'faith-tracker-data';
+  function userDocRef() { return db.collection('users').doc(currentUser.uid); }
 
   function defaultEntry() {
     return {
       sunday: false, predawn: false, wednesday: false,
       catchupSunday: false, catchupWednesday: false,
       bibleChapters: 0, sundayReads: 0, wednesdayReads: 0,
-      letters: [], exercise: false, lecture: false,
-      evangelism: 0, diary: false, diaryText: ''
+      letters: [], exercise: false, lecture: 0,
+      evangelism: 0, diary: false
     };
   }
+  function getEntry(iso) {
+    if (!data.entries[iso]) data.entries[iso] = defaultEntry();
+    return data.entries[iso];
+  }
 
-  // ---------- Firebase ----------
-  // Fill this in with your own project's config from the Firebase console
-  // (Project settings → General → Your apps → Web app).
-  const firebaseConfig = {
-    apiKey: "AIzaSyAAnX0L3qSxcRohz7USm4ZU7dY7wJHIe08",
-    authDomain: "faith-checklist.firebaseapp.com",
-    projectId: "faith-checklist",
-    storageBucket: "faith-checklist.firebasestorage.app",
-    messagingSenderId: "878282088276",
-    appId: "1:878282088276:web:e6d41f9be69ca01d7172c1",
-    measurementId: "G-WEP7FB5ZBP"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
-  db.enablePersistence({ synchronizeTabs: true }).catch(() => {});
-
-  const LEGACY_STORAGE_KEY = 'faith-tracker-data';
-  let currentUser = null;
-
-  function userDocRef() {
-    return db.collection('users').doc(currentUser.uid);
+  function normalizeData() {
+    if (!data.entries) data.entries = {};
+    if (typeof data.letterMax !== 'number') data.letterMax = 170;
+    if (!Array.isArray(data.groupIds)) data.groupIds = [];
   }
 
   async function loadData() {
     const snap = await userDocRef().get();
     if (snap.exists) {
       data = snap.data();
-      if (!data.entries) data.entries = {};
-      if (typeof data.letterMax !== 'number') data.letterMax = 170;
-    } else {
-      // brand-new account: start empty, but offer to bring in any data
-      // already sitting on this device from before accounts existed.
-      data = { entries: {}, letterMax: 170 };
-      const legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (legacyRaw) {
-        try {
-          const legacy = JSON.parse(legacyRaw);
-          if (legacy && legacy.entries && Object.keys(legacy.entries).length > 0) {
-            const bring = confirm('We found existing checklist data on this device. Import it into your new account?');
-            if (bring) {
-              data = legacy;
-              if (typeof data.letterMax !== 'number') data.letterMax = 170;
-            }
-          }
-        } catch (e) { /* ignore unreadable legacy data */ }
-      }
-      await userDocRef().set(data);
+      normalizeData();
+      return;
     }
+    data = { entries: {}, letterMax: 170, groupIds: [], groupsSetupDone: false };
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) {
+      try {
+        const legacy = JSON.parse(raw);
+        if (legacy && legacy.entries && Object.keys(legacy.entries).length > 0 &&
+            confirm('We found existing checklist data on this device. Import it into your new account?')) {
+          data = legacy;
+          data.groupsSetupDone = false;
+          normalizeData();
+        }
+      } catch (e) { /* ignore */ }
+    }
+    await userDocRef().set(data);
   }
 
   let saveTimer = null;
   function saveData() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      userDocRef().set(data).catch((e) => console.error('Save failed', e));
+    saveTimer = setTimeout(function () {
+      userDocRef().set(data).catch(function (e) { console.error('Save failed', e); });
       updateLeaderboard(toISO(viewDate));
     }, 150);
   }
 
-  // The fields every leaderboard row carries, shared across week/month/year.
-  const LEADERBOARD_CATEGORIES = [
-    ['bibleChapters', 'Bible reading'],
-    ['msgReads', 'Message re-reads'],
-    ['lettersCount', 'Letters read'],
-    ['attendanceDays', 'Attendance'],
-    ['exerciseDays', 'Exercise'],
-    ['lectureDays', 'Lecture'],
-    ['evangelism', 'Evangelism'],
-  ];
-
-  function computeAggregateForPeriod(periodType, iso) {
-    let periodKey, groupKeyFn;
-    if (periodType === 'week') {
-      periodKey = toISO(startOfWeek(fromISO(iso)));
-      groupKeyFn = (i) => toISO(startOfWeek(fromISO(i)));
-    } else if (periodType === 'month') {
-      periodKey = iso.slice(0, 7);
-      groupKeyFn = (i) => i.slice(0, 7);
-    } else {
-      periodKey = iso.slice(0, 4);
-      groupKeyFn = (i) => i.slice(0, 4);
-    }
-    const byGroup = aggregateEntries(groupKeyFn);
-    const a = byGroup[periodKey] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
-    return {
-      periodKey,
-      bibleChapters: a.bibleChapters,
-      msgReads: a.msgReads,
-      lettersCount: a.letters.size,
-      attendanceDays: a.attendanceDays,
-      exerciseDays: a.exerciseDays,
-      lectureDays: a.lectureDays,
-      evangelism: a.evangelism
-    };
+  // ================= leaderboard =================
+  function periodStats(type, iso) {
+    const cfgP = PERIODS[type];
+    const key = cfgP.keyOf(iso);
+    const agg = aggregateEntries(cfgP.keyOf)[key] || aggregateList([]);
+    return { key: key, agg: agg };
   }
 
   async function updateLeaderboard(iso) {
-    if (!currentUser) return;
+    if (!currentUser || !data) return;
     const displayName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Member');
     try {
       const batch = db.batch();
-      ['week', 'month', 'year'].forEach((periodType) => {
-        const stats = computeAggregateForPeriod(periodType, iso);
-        const docId = periodType + '_' + stats.periodKey + '_' + currentUser.uid;
-        const ref = db.collection('leaderboard').doc(docId);
-        batch.set(ref, {
+      ['week', 'month', 'year'].forEach(function (type) {
+        const s = periodStats(type, iso);
+        const row = Object.assign({}, s.agg, {
           uid: currentUser.uid,
-          displayName,
-          periodType,
-          periodKey: stats.periodKey,
-          bibleChapters: stats.bibleChapters,
-          msgReads: stats.msgReads,
-          lettersCount: stats.lettersCount,
-          attendanceDays: stats.attendanceDays,
-          exerciseDays: stats.exerciseDays,
-          lectureDays: stats.lectureDays,
-          evangelism: stats.evangelism,
+          displayName: displayName,
+          periodType: type,
+          periodKey: s.key,
+          groupIds: data.groupIds || [],
           updatedAt: firebase.firestore.FieldValue.serverTimestamp()
         });
+        batch.set(db.collection('leaderboard').doc(type + '_' + s.key + '_' + currentUser.uid), row);
       });
       await batch.commit();
     } catch (e) { console.error('Leaderboard update failed', e); }
   }
 
-  async function fetchLeaderboard(periodType, periodKey) {
+  async function fetchLeaderboard(type, key) {
     try {
       const snap = await db.collection('leaderboard')
-        .where('periodType', '==', periodType)
-        .where('periodKey', '==', periodKey)
-        .get();
-      return snap.docs.map((d) => d.data());
+        .where('periodType', '==', type).where('periodKey', '==', key).get();
+      return snap.docs.map(function (d) { return d.data(); });
     } catch (e) {
       console.error('Leaderboard fetch failed', e);
       return [];
     }
   }
 
-  // Renders category leaders + an overall ranking for one period, comparing
-  // everyone who has logged data for it (not just the signed-in person).
-  async function renderGroupLeaderboard(container, periodType, periodKey) {
-    container.innerHTML = '<div class="ft-empty">Loading group standings…</div>';
-    const docs = await fetchLeaderboard(periodType, periodKey);
-    if (!container.isConnected) return; // tab changed before this resolved
-    container.innerHTML = '';
-    if (docs.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'ft-empty';
-      empty.textContent = 'No one has logged data for this period yet.';
-      container.appendChild(empty);
-      return;
-    }
-
-    LEADERBOARD_CATEGORIES.forEach(([key, label]) => {
-      let best = null;
-      docs.forEach((d) => { if (!best || (d[key] || 0) > (best[key] || 0)) best = d; });
-      if (!best || (best[key] || 0) <= 0) return;
-      const div = document.createElement('div');
-      const isYou = best.uid === currentUser.uid;
-      div.className = 'ft-champion' + (isYou ? ' ft-champ-leading' : '');
-      const catLine = document.createElement('span');
-      catLine.className = 'ft-champ-cat';
-      catLine.textContent = label;
-      const text = document.createElement('div');
-      text.textContent = (best.displayName || 'Member') + ' leads with ' + best[key] + (isYou ? ' — that\'s you' : '');
-      div.appendChild(catLine);
-      div.appendChild(text);
-      container.appendChild(div);
+  function computeAwards(rows) {
+    const maxes = {}, byMetric = {}, badgeCount = {};
+    METRICS.forEach(function (m) {
+      let mx = 0;
+      rows.forEach(function (r) { if ((r[m.key] || 0) > mx) mx = r[m.key]; });
+      maxes[m.key] = mx;
+      const winners = mx > 0 ? rows.filter(function (r) { return (r[m.key] || 0) === mx; }) : [];
+      byMetric[m.key] = { max: mx, winners: winners };
+      winners.forEach(function (w) { badgeCount[w.uid] = (badgeCount[w.uid] || 0) + 1; });
     });
-
-    const maxes = {};
-    LEADERBOARD_CATEGORIES.forEach(([key]) => {
-      let m = 0;
-      docs.forEach((d) => { const v = d[key] || 0; if (v > m) m = v; });
-      maxes[key] = m;
-    });
-    const ranked = docs.map((d) => {
-      let sum = 0, count = 0;
-      LEADERBOARD_CATEGORIES.forEach(([key]) => {
-        const max = maxes[key];
-        if (max > 0) { sum += ((d[key] || 0) / max) * 100; count++; }
+    const ranked = rows.map(function (r) {
+      let sum = 0, c = 0;
+      METRICS.forEach(function (m) {
+        if (maxes[m.key] > 0) { sum += ((r[m.key] || 0) / maxes[m.key]) * 100; c++; }
       });
-      return Object.assign({}, d, { score: count > 0 ? Math.round(sum / count) : 0 });
-    }).sort((a, b) => b.score - a.score);
-
-    const rankTitle = document.createElement('p');
-    rankTitle.className = 'ft-section-title';
-    rankTitle.style.marginTop = '16px';
-    rankTitle.textContent = 'Overall ranking';
-    container.appendChild(rankTitle);
-
-    ranked.slice(0, 5).forEach((d, i) => {
-      container.appendChild(leaderboardRow(i + 1, d));
-    });
-    const yourIndex = ranked.findIndex((d) => d.uid === currentUser.uid);
-    if (yourIndex >= 5) {
-      const row = leaderboardRow(yourIndex + 1, ranked[yourIndex]);
-      row.style.borderTop = '1px dashed var(--line)';
-      row.style.marginTop = '6px';
-      row.style.paddingTop = '11px';
-      container.appendChild(row);
-    }
+      return { row: r, badges: badgeCount[r.uid] || 0, score: c ? Math.round(sum / c) : 0 };
+    }).sort(function (a, b) { return b.badges - a.badges || b.score - a.score; });
+    return { ranked: ranked, byMetric: byMetric };
   }
 
-  function leaderboardRow(rank, d) {
-    const row = document.createElement('div');
-    row.className = 'ft-row';
-    const isYou = d.uid === currentUser.uid;
-    const label = document.createElement('div');
-    label.className = 'ft-row-label';
-    label.textContent = '#' + rank + ' ' + (d.displayName || 'Member') + (isYou ? ' (you)' : '');
-    const score = document.createElement('div');
-    score.style.fontWeight = '600';
-    score.textContent = d.score;
-    row.appendChild(label);
-    row.appendChild(score);
+  function myGroupList() {
+    return allGroups.filter(function (g) { return data.groupIds.indexOf(g.id) !== -1; });
+  }
+
+  async function renderAwards(container, type, key, isFinal) {
+    container.innerHTML = '';
+    container.appendChild(el('div', 'ft-empty', 'Loading awards…'));
+    const rows = await fetchLeaderboard(type, key);
+    if (!container.isConnected) return;
+    const groups = myGroupList();
+    if (awardScope !== 'all' && !groups.some(function (g) { return g.id === awardScope; })) awardScope = 'all';
+
+    function draw() {
+      container.innerHTML = '';
+      const scopes = [{ id: 'all', name: 'Everyone' }].concat(groups);
+      if (scopes.length > 1) {
+        const pills = el('div', 'ft-pills');
+        scopes.forEach(function (s) {
+          const b = el('button', 'ft-pill' + (s.id === awardScope ? ' active' : ''), s.name);
+          b.type = 'button';
+          b.addEventListener('click', function () { awardScope = s.id; draw(); });
+          pills.appendChild(b);
+        });
+        container.appendChild(pills);
+      }
+      const scopeRows = awardScope === 'all' ? rows : rows.filter(function (r) { return (r.groupIds || []).indexOf(awardScope) !== -1; });
+      const scopeName = (scopes.filter(function (s) { return s.id === awardScope; })[0] || scopes[0]).name;
+      if (!scopeRows.length) {
+        container.appendChild(el('div', 'ft-empty', 'No one has logged anything for this period yet.'));
+        return;
+      }
+      const res = computeAwards(scopeRows);
+      const top = res.ranked[0];
+      const head = el('div', 'ft-champion' + (top.row.uid === currentUser.uid ? ' ft-champ-leading' : ''));
+      head.appendChild(el('span', 'ft-champ-cat', (isFinal ? 'Winner' : 'Leading') + ' · ' + scopeName));
+      if (top.badges === 0) {
+        head.appendChild(el('div', '', 'No badges won yet.'));
+      } else {
+        const tied = res.ranked.filter(function (x) { return x.badges === top.badges && x.score === top.score; });
+        head.appendChild(el('div', '', tied.map(function (x) { return x.row.displayName || 'Member'; }).join(' & ') +
+          ' with ' + top.badges + (top.badges === 1 ? ' badge' : ' badges')));
+      }
+      container.appendChild(head);
+
+      container.appendChild(el('p', 'ft-section-title', 'Most badges'));
+      const list = el('div', 'ft-section');
+      res.ranked.slice(0, 5).forEach(function (x, i) { list.appendChild(rankRow(i + 1, x)); });
+      const myIdx = res.ranked.findIndex(function (x) { return x.row.uid === currentUser.uid; });
+      if (myIdx >= 5) {
+        const r = rankRow(myIdx + 1, res.ranked[myIdx]);
+        r.style.borderTop = '1px dashed var(--line)';
+        list.appendChild(r);
+      }
+      container.appendChild(list);
+      container.appendChild(el('div', 'ft-note', 'Ties on badges are broken by overall average.'));
+
+      container.appendChild(el('p', 'ft-section-title', 'Badges'));
+      const bl = el('div', 'ft-section');
+      let mine = 0;
+      METRICS.forEach(function (m) {
+        const info = res.byMetric[m.key];
+        const isMine = info.winners.some(function (w) { return w.uid === currentUser.uid; });
+        if (isMine) mine++;
+        const row = el('div', 'ft-badge-row' + (isMine ? ' mine' : ''));
+        row.appendChild(el('span', 'ft-badge-name', badgeName(m)));
+        row.appendChild(el('span', 'ft-badge-winner',
+          info.winners.length
+            ? m.label + ' · ' + info.winners.map(function (w) { return (w.displayName || 'Member') + (w.uid === currentUser.uid ? ' (you)' : ''); }).join(', ') + ' · ' + info.max
+            : m.label + ' · not won yet'));
+        bl.appendChild(row);
+      });
+      container.appendChild(bl);
+      container.appendChild(el('div', 'ft-note', 'You hold ' + mine + ' of ' + METRICS.length + ' badges here.'));
+    }
+    draw();
+  }
+
+  function rankRow(rank, x) {
+    const row = el('div', 'ft-row');
+    const isYou = x.row.uid === currentUser.uid;
+    row.appendChild(el('div', 'ft-row-label', '#' + rank + ' ' + (x.row.displayName || 'Member') + (isYou ? ' (you)' : '')));
+    const v = el('div', '', x.badges + (x.badges === 1 ? ' badge' : ' badges'));
+    v.style.fontWeight = '600';
+    row.appendChild(v);
     return row;
   }
 
-  // Adds a normalized 0-100 "overallScore" field to each entry in byGroup,
-  // relative to the best value seen for each category within that same
-  // map — used for "best overall" personal-history milestones.
-  function addOverallScores(byGroup, categories) {
-    const maxes = {};
-    categories.forEach(([key, , extract]) => {
-      let m = 0;
-      Object.values(byGroup).forEach((a) => { const v = extract(a[key]); if (v > m) m = v; });
-      maxes[key] = m;
+  // ================= groups =================
+  async function loadGroups() {
+    const snap = await db.collection('groups').get();
+    allGroups = snap.docs.map(function (d) { return { id: d.id, name: d.data().name || d.id }; })
+      .sort(function (a, b) { return a.name.localeCompare(b.name); });
+  }
+
+  function slugify(name) {
+    const s = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (s) return s.slice(0, 60);
+    let h = 0;
+    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+    return 'g-' + Math.abs(h);
+  }
+
+  async function createOrJoinGroup(rawName) {
+    const name = rawName.trim().slice(0, 60);
+    if (!name) return;
+    const id = slugify(name);
+    const ref = db.collection('groups').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set({ name: name, createdBy: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    if (data.groupIds.indexOf(id) === -1) data.groupIds.push(id);
+    await loadGroups();
+  }
+
+  function checkRow(label, hint, checked, onToggle) {
+    const row = el('div', 'ft-row');
+    const lw = el('div', 'ft-row-label', label);
+    if (hint) lw.appendChild(el('span', 'ft-row-hint', hint));
+    const box = el('div', 'ft-check' + (checked ? ' checked' : ''));
+    box.addEventListener('click', function () { onToggle(!checked); });
+    row.appendChild(lw);
+    row.appendChild(box);
+    return row;
+  }
+
+  function stepRow(label, hint, value, onChange) {
+    const row = el('div', 'ft-row');
+    const lw = el('div', 'ft-row-label', label);
+    if (hint) lw.appendChild(el('span', 'ft-row-hint', hint));
+    const st = el('div', 'ft-stepper');
+    const minus = el('button', '', '−');
+    minus.type = 'button';
+    minus.disabled = value <= 0;
+    minus.addEventListener('click', function () { if (value > 0) onChange(value - 1); });
+    const plus = el('button', 'ft-step-plus', '+');
+    plus.type = 'button';
+    plus.addEventListener('click', function () { onChange(value + 1); });
+    st.appendChild(minus);
+    st.appendChild(el('span', 'ft-step-val', String(value)));
+    st.appendChild(plus);
+    row.appendChild(lw);
+    row.appendChild(st);
+    return row;
+  }
+
+  function renderGroupsPanel(container, onboarding) {
+    container.innerHTML = '';
+    if (!allGroups.length) {
+      container.appendChild(el('div', 'ft-note', 'No groups exist yet. Create the first one below.'));
+    }
+    allGroups.forEach(function (g) {
+      const isMember = data.groupIds.indexOf(g.id) !== -1;
+      container.appendChild(checkRow(g.name, null, isMember, function (on) {
+        if (on && data.groupIds.indexOf(g.id) === -1) data.groupIds.push(g.id);
+        if (!on) data.groupIds = data.groupIds.filter(function (x) { return x !== g.id; });
+        saveData();
+        updateLeaderboard(toISO(new Date()));
+        renderGroupsPanel(container, onboarding);
+      }));
     });
-    Object.keys(byGroup).forEach((k) => {
-      const a = byGroup[k];
-      let sum = 0, count = 0;
-      categories.forEach(([key, , extract]) => {
-        const max = maxes[key];
-        if (max > 0) { sum += (extract(a[key]) / max) * 100; count++; }
+    const inline = el('div', 'ft-inline');
+    const input = el('input', 'ft-text');
+    input.type = 'text';
+    input.placeholder = 'New group name (e.g. your department)';
+    const btn = el('button', 'ft-btn', 'Create & join');
+    btn.type = 'button';
+    const msg = el('div', 'ft-msg');
+    btn.addEventListener('click', async function () {
+      if (!input.value.trim()) return;
+      btn.disabled = true;
+      try {
+        await createOrJoinGroup(input.value);
+        saveData();
+        updateLeaderboard(toISO(new Date()));
+        renderGroupsPanel(container, onboarding);
+      } catch (e) {
+        msg.textContent = 'Could not create the group: ' + (e.message || e);
+        btn.disabled = false;
+      }
+    });
+    inline.appendChild(input);
+    inline.appendChild(btn);
+    container.appendChild(inline);
+    container.appendChild(msg);
+  }
+
+  function renderOnboarding() {
+    tabsEl.style.display = 'none';
+    content.innerHTML = '';
+    content.appendChild(el('div', 'ft-big-title', 'Join your groups'));
+    content.appendChild(el('div', 'ft-note', 'Pick every group you belong to, such as your department. Each group gets its own badges and leaderboard. You can change this any time under More.'));
+    const panel = el('div', 'ft-section');
+    content.appendChild(panel);
+    renderGroupsPanel(panel, true);
+    const go = el('button', 'ft-btn primary', 'Continue');
+    go.type = 'button';
+    go.style.width = '100%';
+    go.addEventListener('click', function () {
+      data.groupsSetupDone = true;
+      saveData();
+      updateLeaderboard(toISO(new Date()));
+      enterApp();
+    });
+    content.appendChild(go);
+  }
+
+  // ================= private diary (end-to-end encrypted) =================
+  const TE = new TextEncoder(), TD = new TextDecoder();
+  function b64(buf) {
+    const bytes = new Uint8Array(buf);
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function unb64(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+  async function deriveKey(pass, saltB64) {
+    const base = await crypto.subtle.importKey('raw', TE.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: unb64(saltB64), iterations: 250000, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+  }
+  async function encryptText(key, text) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, TE.encode(text));
+    return { iv: b64(iv), ct: b64(ct) };
+  }
+  async function decryptText(key, obj) {
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(obj.iv) }, key, unb64(obj.ct));
+    return TD.decode(pt);
+  }
+  const DIARY_CHECK = 'faith-diary-ok';
+
+  // Shows a set-up or unlock form until the diary key is available.
+  function diaryGate(container, onReady) {
+    if (diaryKey) { onReady(); return; }
+    container.innerHTML = '';
+    const msg = el('div', 'ft-msg');
+    if (!data.diaryCrypto) {
+      container.appendChild(el('div', 'ft-note', 'Your diary is private. It is encrypted on your device with a passphrase only you know, so nobody else, including the person who runs this app, can read it. Any diary text you already wrote will be encrypted too.'));
+      container.appendChild(el('div', 'ft-note', 'If you forget this passphrase your diary cannot be recovered. It is separate from your login password.'));
+      const p1 = el('input', 'ft-text'); p1.type = 'password'; p1.placeholder = 'Choose a diary passphrase (8+ characters)'; p1.autocomplete = 'new-password';
+      const p2 = el('input', 'ft-text'); p2.type = 'password'; p2.placeholder = 'Confirm passphrase'; p2.autocomplete = 'new-password';
+      const btn = el('button', 'ft-btn primary', 'Set diary passphrase');
+      btn.type = 'button';
+      btn.addEventListener('click', async function () {
+        msg.textContent = '';
+        if (p1.value.length < 8) { msg.textContent = 'Use at least 8 characters.'; return; }
+        if (p1.value !== p2.value) { msg.textContent = 'The two passphrases do not match.'; return; }
+        btn.disabled = true;
+        try {
+          const salt = b64(crypto.getRandomValues(new Uint8Array(16)));
+          const key = await deriveKey(p1.value, salt);
+          const check = await encryptText(key, DIARY_CHECK);
+          const isos = Object.keys(data.entries);
+          for (let i = 0; i < isos.length; i++) {
+            const e = data.entries[isos[i]];
+            if (e.diaryText) { e.diaryEnc = await encryptText(key, e.diaryText); delete e.diaryText; }
+          }
+          data.diaryCrypto = { salt: salt, check: check };
+          diaryKey = key;
+          saveData();
+          onReady();
+        } catch (e) { msg.textContent = 'Could not set up encryption on this device.'; btn.disabled = false; }
       });
-      a.overallScore = count > 0 ? Math.round(sum / count) : 0;
+      const st = el('div', 'ft-stack');
+      st.appendChild(p1); st.appendChild(p2); st.appendChild(btn);
+      container.appendChild(st);
+    } else {
+      const p = el('input', 'ft-text'); p.type = 'password'; p.placeholder = 'Diary passphrase'; p.autocomplete = 'current-password';
+      const btn = el('button', 'ft-btn primary', 'Unlock diary');
+      btn.type = 'button';
+      const go = async function () {
+        msg.textContent = '';
+        btn.disabled = true;
+        try {
+          const key = await deriveKey(p.value, data.diaryCrypto.salt);
+          const check = await decryptText(key, data.diaryCrypto.check);
+          if (check !== DIARY_CHECK) throw new Error('bad');
+          diaryKey = key;
+          onReady();
+        } catch (e) { msg.textContent = 'That passphrase is not correct.'; btn.disabled = false; }
+      };
+      btn.addEventListener('click', go);
+      p.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') go(); });
+      const st = el('div', 'ft-stack');
+      st.appendChild(p); st.appendChild(btn);
+      container.appendChild(st);
+    }
+    container.appendChild(msg);
+  }
+
+  function renderDiaryHistory(container) {
+    container.innerHTML = '';
+    if (!data.diaryCrypto) {
+      container.appendChild(el('div', 'ft-note', 'Set your diary passphrase from the Today tab, then your past entries will show here.'));
+      return;
+    }
+    diaryGate(container, async function () {
+      container.innerHTML = '';
+      const isos = Object.keys(data.entries).filter(function (i) { return data.entries[i].diaryEnc; }).sort().reverse();
+      if (!isos.length) { container.appendChild(el('div', 'ft-note', 'No diary entries yet.')); return; }
+      for (let i = 0; i < isos.length; i++) {
+        const box = el('div', 'ft-diary-entry');
+        box.appendChild(el('div', 'ft-diary-date', fmtLong(fromISO(isos[i])) + ', ' + isos[i].slice(0, 4)));
+        let text;
+        try { text = await decryptText(diaryKey, data.entries[isos[i]].diaryEnc); }
+        catch (e) { text = '(could not be decrypted)'; }
+        box.appendChild(el('div', 'ft-diary-text', text));
+        container.appendChild(box);
+      }
+      const lock = el('button', 'ft-link', 'Lock diary');
+      lock.type = 'button';
+      lock.addEventListener('click', function () { diaryKey = null; render(); });
+      container.appendChild(lock);
     });
   }
 
+  // ================= rendering =================
+  function section(title) {
+    content.appendChild(el('p', 'ft-section-title', title));
+    const s = el('div', 'ft-section');
+    content.appendChild(s);
+    return s;
+  }
+
+  function navBar(text, canPrev, canNext, onPrev, onNext) {
+    const nav = el('div', 'ft-nav');
+    const prev = el('button', '', '‹');
+    prev.disabled = !canPrev; prev.style.opacity = canPrev ? '1' : '0.35';
+    prev.addEventListener('click', function () { if (canPrev) onPrev(); });
+    const next = el('button', '', '›');
+    next.disabled = !canNext; next.style.opacity = canNext ? '1' : '0.35';
+    next.addEventListener('click', function () { if (canNext) onNext(); });
+    nav.appendChild(prev);
+    nav.appendChild(el('div', 'ft-range', text));
+    nav.appendChild(next);
+    return nav;
+  }
+
+  function renderChampions(container, byGroup, metrics, selectedKey, formatKey, emptyMsg) {
+    const keys = Object.keys(byGroup);
+    let shown = false;
+    metrics.concat([{ key: 'overall', label: 'Overall average', badge: null }]).forEach(function (m) {
+      let bestKey = null, bestVal = 0;
+      keys.forEach(function (k) {
+        const v = byGroup[k][m.key] || 0;
+        if (v > bestVal || (v === bestVal && v > 0 && k === selectedKey)) { bestVal = v; bestKey = k; }
+      });
+      if (!bestKey) return;
+      shown = true;
+      const isSel = bestKey === selectedKey;
+      const div = el('div', 'ft-champion' + (isSel ? ' ft-champ-leading' : ''));
+      div.appendChild(el('span', 'ft-champ-cat', m.badge ? badgeName(m) + ' · ' + m.label : m.label));
+      div.appendChild(el('div', '', formatKey(bestKey) + ' is your best with ' + bestVal + (isSel ? ' — this is it' : '')));
+      container.appendChild(div);
+    });
+    if (!shown) container.appendChild(el('div', 'ft-empty', emptyMsg));
+  }
+
+  function render() {
+    headerSub.textContent = fmtLong(new Date());
+    if (activeTab === 'today') renderToday();
+    else if (activeTab === 'more') renderMore();
+    else renderPeriod(activeTab);
+  }
+
+  function renderToday() {
+    content.innerHTML = '';
+    const iso = toISO(viewDate);
+    const entry = getEntry(iso);
+    const dow = viewDate.getDay();
+    const canPrev = iso > toISO(minLogDate());
+    const canNext = iso < toISO(new Date());
+    content.appendChild(navBar(fmtLong(viewDate), canPrev, canNext,
+      function () { viewDate = addDays(viewDate, -1); render(); },
+      function () { viewDate = addDays(viewDate, 1); render(); }));
+
+    const upd = function (fn) { return function (v) { fn(v); saveData(); render(); }; };
+
+    let s = section('Attendance');
+    if (dow === 0) s.appendChild(checkRow('Sunday message', null, entry.sunday, upd(function (v) { entry.sunday = v; })));
+    s.appendChild(checkRow('Predawn', null, entry.predawn, upd(function (v) { entry.predawn = v; })));
+    if (dow === 3) s.appendChild(checkRow('Wednesday message', null, entry.wednesday, upd(function (v) { entry.wednesday = v; })));
+    s.appendChild(el('div', 'ft-row-hint', 'Once connected to the attendance bot, this will fill in automatically from the logs.'));
+
+    s = section('Catch up if missed');
+    s.appendChild(checkRow('Caught up on Sunday message', null, entry.catchupSunday, upd(function (v) { entry.catchupSunday = v; })));
+    s.appendChild(checkRow('Caught up on Wednesday message', null, entry.catchupWednesday, upd(function (v) { entry.catchupWednesday = v; })));
+
+    s = section('Reading');
+    s.appendChild(stepRow('Bible chapters read', null, entry.bibleChapters || 0, upd(function (v) { entry.bibleChapters = v; })));
+    s.appendChild(stepRow('Sunday message re-reads', 'The more times the better', entry.sundayReads || 0, upd(function (v) { entry.sundayReads = v; })));
+    s.appendChild(stepRow('Wednesday message re-reads', 'The more times the better', entry.wednesdayReads || 0, upd(function (v) { entry.wednesdayReads = v; })));
+
+    s = section('Story of the Holy Spirit letter');
+    const lr = el('div', 'ft-row');
+    const llw = el('div', 'ft-row-label', 'Letter numbers read today');
+    llw.appendChild(el('span', 'ft-row-hint', 'e.g. 168, 169, 170'));
+    const li = el('input', 'ft-text');
+    li.type = 'text'; li.style.width = '110px';
+    li.value = (entry.letters || []).join(', ');
+    li.addEventListener('change', function () {
+      const nums = li.value.split(',').map(function (x) { return parseInt(x.trim(), 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
+      entry.letters = Array.from(new Set(nums));
+      saveData(); render();
+    });
+    lr.appendChild(llw); lr.appendChild(li);
+    s.appendChild(lr);
+    const readSet = new Set();
+    Object.keys(data.entries).forEach(function (k) { (data.entries[k].letters || []).forEach(function (n) { readSet.add(n); }); });
+    const pw = el('div', 'ft-progress-wrap');
+    const bar = el('div', 'ft-progress-bar');
+    bar.style.width = Math.min(100, Math.round(readSet.size / (data.letterMax || 170) * 100)) + '%';
+    pw.appendChild(bar);
+    s.appendChild(pw);
+    s.appendChild(el('div', 'ft-progress-label', readSet.size + ' of ' + data.letterMax + ' letters read overall'));
+    const sl = el('div', 'ft-settings-line');
+    sl.appendChild(el('span', '', 'Latest letter number posted'));
+    const si = el('input'); si.type = 'number'; si.min = 1; si.value = data.letterMax;
+    si.addEventListener('change', function () { data.letterMax = Math.max(1, parseInt(si.value, 10) || data.letterMax); saveData(); render(); });
+    sl.appendChild(si);
+    s.appendChild(sl);
+
+    s = section('Practice');
+    s.appendChild(checkRow('Exercise', null, entry.exercise, upd(function (v) { entry.exercise = v; })));
+    s.appendChild(stepRow('Lectures attended', null, lectureCount(entry), upd(function (v) { entry.lecture = v; })));
+
+    s = section('Evangelism');
+    s.appendChild(stepRow('People met or invited', null, entry.evangelism || 0, upd(function (v) { entry.evangelism = v; })));
+
+    s = section('My Diary today');
+    const dl = el('div', 'ft-row-label', 'Dear Lord');
+    dl.style.marginBottom = '6px';
+    s.appendChild(dl);
+    if (!diaryKey) {
+      const gate = el('div');
+      s.appendChild(gate);
+      diaryGate(gate, render);
+    } else {
+      const ta = el('textarea', 'ft-text');
+      ta.placeholder = "Write today's diary entry…";
+      ta.style.marginBottom = '4px';
+      if (entry.diaryEnc) {
+        decryptText(diaryKey, entry.diaryEnc).then(function (t) { ta.value = t; }).catch(function () { ta.value = ''; ta.placeholder = '(this entry could not be decrypted)'; });
+      }
+      ta.addEventListener('change', async function () {
+        const t = ta.value;
+        if (t.trim()) entry.diaryEnc = await encryptText(diaryKey, t); else delete entry.diaryEnc;
+        delete entry.diaryText;
+        saveData();
+      });
+      s.appendChild(ta);
+      const lock = el('button', 'ft-link', 'Lock diary');
+      lock.type = 'button';
+      lock.addEventListener('click', function () { diaryKey = null; render(); });
+      s.appendChild(lock);
+    }
+    s.appendChild(checkRow('Write Diary', null, entry.diary, upd(function (v) { entry.diary = v; })));
+
+    s = section('Milestones');
+    const daily = METRICS.filter(function (m) { return m.daily; });
+    const byDay = dayAggregates();
+    addOverallScores(byDay, daily);
+    renderChampions(s, byDay, daily, iso, function (k) { return fmtLong(fromISO(k)); }, 'Log a day to start seeing daily milestones here.');
+  }
+
+  function renderPeriod(type) {
+    content.innerHTML = '';
+    const P = PERIODS[type];
+    const anchor = anchors[type];
+    const key = P.keyOf(toISO(anchor));
+    const curKey = P.keyOf(toISO(new Date()));
+    content.appendChild(navBar(P.label(key), true, key < curKey,
+      function () { anchors[type] = P.shift(anchor, -1); render(); },
+      function () { anchors[type] = P.shift(anchor, 1); render(); }));
+
+    const byGroup = aggregateEntries(P.keyOf);
+    const agg = byGroup[key] || aggregateList([]);
+
+    let s = section('Totals');
+    const grid = el('div', 'ft-stat-grid');
+    METRICS.forEach(function (m) {
+      const st = el('div', 'ft-stat');
+      st.appendChild(el('div', 'ft-stat-num', String(agg[m.key] || 0)));
+      st.appendChild(el('div', 'ft-stat-label', m.label));
+      grid.appendChild(st);
+    });
+    s.appendChild(grid);
+
+    s = section('Your milestones');
+    addOverallScores(byGroup, METRICS);
+    renderChampions(s, byGroup, METRICS, key, P.label, 'Log a few days to start seeing milestones here.');
+
+    const isFinal = key < curKey;
+    s = section(isFinal ? 'Awards · final' : 'Awards · standings so far');
+    renderAwards(s, type, key, isFinal);
+  }
+
+  function renderMore() {
+    content.innerHTML = '';
+    let s = section('My groups');
+    renderGroupsPanel(s, false);
+
+    s = section('Diary history');
+    renderDiaryHistory(s);
+
+    s = section('Backup');
+    s.appendChild(el('div', 'ft-note', 'Your data is saved to your account automatically. A backup file is an extra safety copy (diary entries stay encrypted in it).'));
+    const row = el('div', 'ft-inline');
+    const ex = el('button', 'ft-btn', 'Back up data'); ex.type = 'button';
+    ex.addEventListener('click', exportData);
+    const im = el('button', 'ft-btn', 'Restore backup'); im.type = 'button';
+    const file = el('input'); file.type = 'file'; file.accept = 'application/json'; file.style.display = 'none';
+    im.addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () { if (file.files && file.files[0]) importData(file.files[0]); file.value = ''; });
+    row.appendChild(ex); row.appendChild(im); row.appendChild(file);
+    s.appendChild(row);
+
+    s = section('Reminder');
+    const rb = el('button', 'ft-btn', '');
+    rb.type = 'button';
+    s.appendChild(rb);
+    setupReminderButton(rb);
+  }
+
+  // ================= backup =================
   function exportData() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -759,807 +1290,169 @@
     a.click();
     URL.revokeObjectURL(url);
   }
-
   function importData(file) {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = function () {
       try {
         const parsed = JSON.parse(reader.result);
         if (!parsed.entries) throw new Error('Invalid file');
+        parsed.groupIds = Array.isArray(parsed.groupIds) ? parsed.groupIds : data.groupIds;
+        parsed.groupsSetupDone = true;
         data = parsed;
-        if (typeof data.letterMax !== 'number') data.letterMax = 170;
+        normalizeData();
+        diaryKey = null;
         saveData();
         render();
         alert('Backup restored.');
       } catch (e) {
-        alert('Could not read that file. Make sure it\'s a backup exported from this app.');
+        alert("Could not read that file. Make sure it's a backup exported from this app.");
       }
     };
     reader.readAsText(file);
   }
 
-  function getEntry(iso) {
-    if (!data.entries[iso]) data.entries[iso] = defaultEntry();
-    return data.entries[iso];
+  // ================= 8 PM reminder =================
+  const REMINDER_KEY = 'faith-tracker-reminder-enabled';
+  function msUntilNext8pm() {
+    const now = new Date();
+    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0, 0);
+    if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
+    return t.getTime() - now.getTime();
   }
-
-  function allLettersRead() {
-    const s = new Set();
-    Object.values(data.entries).forEach(e => (e.letters || []).forEach(n => s.add(n)));
-    return s;
+  async function fireReminder() {
+    const body = "Don't forget to log today's faith checklist.";
+    try {
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.ready;
+        reg.showNotification('Faith Checklist', { body: body, icon: 'icon-192.png', badge: 'icon-192.png' });
+      } else if (Notification.permission === 'granted') {
+        new Notification('Faith Checklist', { body: body });
+      }
+    } catch (e) { /* ignore */ }
   }
-
-  // ---------- rendering ----------
-
-  function render() {
-    headerSub.textContent = fmtLong(new Date());
-    if (activeTab === 'today') renderToday();
-    else if (activeTab === 'week') renderWeek();
-    else if (activeTab === 'month') renderMonth();
-    else renderYear();
+  function scheduleReminder() {
+    clearTimeout(reminderTimer);
+    reminderTimer = setTimeout(function () { fireReminder(); scheduleReminder(); }, msUntilNext8pm());
   }
-
-  function checkRow(label, hint, checked, onToggle) {
-    const row = document.createElement('div');
-    row.className = 'ft-row';
-    const labelWrap = document.createElement('div');
-    labelWrap.className = 'ft-row-label';
-    labelWrap.textContent = label;
-    if (hint) {
-      const h = document.createElement('span');
-      h.className = 'ft-row-hint';
-      h.textContent = hint;
-      labelWrap.appendChild(h);
-    }
-    const box = document.createElement('div');
-    box.className = 'ft-check' + (checked ? ' checked' : '');
-    box.addEventListener('click', () => { onToggle(!checked); });
-    row.appendChild(labelWrap);
-    row.appendChild(box);
-    return row;
+  function reminderOn() {
+    return 'Notification' in window && localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
   }
-
-  function numRow(label, hint, value, onChange, min) {
-    const row = document.createElement('div');
-    row.className = 'ft-row';
-    const labelWrap = document.createElement('div');
-    labelWrap.className = 'ft-row-label';
-    labelWrap.textContent = label;
-    if (hint) {
-      const h = document.createElement('span');
-      h.className = 'ft-row-hint';
-      h.textContent = hint;
-      labelWrap.appendChild(h);
-    }
-    const floor = min || 0;
-    const stepper = document.createElement('div');
-    stepper.className = 'ft-stepper';
-    const minus = document.createElement('button');
-    minus.type = 'button';
-    minus.textContent = '−';
-    minus.disabled = value <= floor;
-    minus.addEventListener('click', () => { if (value > floor) onChange(value - 1); });
-    const val = document.createElement('span');
-    val.className = 'ft-step-val';
-    val.textContent = value;
-    const plus = document.createElement('button');
-    plus.type = 'button';
-    plus.className = 'ft-step-plus';
-    plus.textContent = '+';
-    plus.addEventListener('click', () => { onChange(value + 1); });
-    stepper.appendChild(minus);
-    stepper.appendChild(val);
-    stepper.appendChild(plus);
-    row.appendChild(labelWrap);
-    row.appendChild(stepper);
-    return row;
-  }
-
-  function sectionTitle(text) {
-    const t = document.createElement('p');
-    t.className = 'ft-section-title';
-    t.textContent = text;
-    return t;
-  }
-
-  function renderToday() {
-    content.innerHTML = '';
-    const iso = toISO(viewDate);
-    const entry = getEntry(iso);
-    const dow = viewDate.getDay(); // 0 = Sunday, 3 = Wednesday
-    const minDate = minLogDate();
-
-    // nav
-    const nav = document.createElement('div');
-    nav.className = 'ft-nav';
-    const prev = document.createElement('button');
-    prev.textContent = '‹';
-    prev.disabled = viewDate.getTime() <= minDate.getTime();
-    prev.style.opacity = prev.disabled ? '0.35' : '1';
-    prev.addEventListener('click', () => { if (!prev.disabled) { viewDate = new Date(viewDate.getTime() - DAY_MS); render(); } });
-    const range = document.createElement('div');
-    range.className = 'ft-range';
-    range.textContent = fmtLong(viewDate);
-    const next = document.createElement('button');
-    next.textContent = '›';
-    next.disabled = isFuture(new Date(viewDate.getTime() + DAY_MS - 1));
-    next.style.opacity = next.disabled ? '0.35' : '1';
-    next.addEventListener('click', () => { if (!next.disabled) { viewDate = new Date(viewDate.getTime() + DAY_MS); render(); } });
-    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
-    content.appendChild(nav);
-
-    // attendance
-    content.appendChild(sectionTitle('Attendance'));
-    const attSec = document.createElement('div');
-    attSec.className = 'ft-section';
-    if (dow === 0) {
-      attSec.appendChild(checkRow('Sunday message', null, entry.sunday, v => { entry.sunday = v; saveData(); render(); }));
-    }
-    attSec.appendChild(checkRow('Predawn', null, entry.predawn, v => { entry.predawn = v; saveData(); render(); }));
-    if (dow === 3) {
-      attSec.appendChild(checkRow('Wednesday message', null, entry.wednesday, v => { entry.wednesday = v; saveData(); render(); }));
-    }
-    const note = document.createElement('div');
-    note.className = 'ft-row-hint';
-    note.style.marginTop = '8px';
-    note.textContent = 'Once connected to the attendance bot, this will fill in automatically from the logs.';
-    attSec.appendChild(note);
-    content.appendChild(attSec);
-
-    // catch up
-    content.appendChild(sectionTitle('Catch up if missed'));
-    const catchSec = document.createElement('div');
-    catchSec.className = 'ft-section';
-    catchSec.appendChild(checkRow('Caught up on Sunday message', null, entry.catchupSunday, v => { entry.catchupSunday = v; saveData(); render(); }));
-    catchSec.appendChild(checkRow('Caught up on Wednesday message', null, entry.catchupWednesday, v => { entry.catchupWednesday = v; saveData(); render(); }));
-    content.appendChild(catchSec);
-
-    // bible + messages
-    content.appendChild(sectionTitle('Reading'));
-    const readSec = document.createElement('div');
-    readSec.className = 'ft-section';
-    readSec.appendChild(numRow('Bible chapters read', null, entry.bibleChapters, v => { entry.bibleChapters = v; saveData(); render(); }));
-    readSec.appendChild(numRow('Sunday message re-reads', 'The more times the better', entry.sundayReads, v => { entry.sundayReads = v; saveData(); render(); }));
-    readSec.appendChild(numRow('Wednesday message re-reads', 'The more times the better', entry.wednesdayReads, v => { entry.wednesdayReads = v; saveData(); render(); }));
-    content.appendChild(readSec);
-
-    // letters
-    content.appendChild(sectionTitle('Story of the Holy Spirit letter'));
-    const letterSec = document.createElement('div');
-    letterSec.className = 'ft-section';
-    const letterRow = document.createElement('div');
-    letterRow.className = 'ft-row';
-    const letterLabelWrap = document.createElement('div');
-    letterLabelWrap.className = 'ft-row-label';
-    letterLabelWrap.textContent = 'Letter numbers read today';
-    const hint = document.createElement('span');
-    hint.className = 'ft-row-hint';
-    hint.textContent = 'e.g. 168, 169, 170';
-    letterLabelWrap.appendChild(hint);
-    const letterInput = document.createElement('input');
-    letterInput.type = 'text';
-    letterInput.className = 'ft-text';
-    letterInput.style.width = '110px';
-    letterInput.value = (entry.letters || []).join(', ');
-    letterInput.addEventListener('change', () => {
-      const nums = letterInput.value.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n) && n > 0);
-      entry.letters = Array.from(new Set(nums));
-      saveData(); render();
+  function setupReminderButton(btn) {
+    if (!('Notification' in window)) { btn.textContent = 'Reminders are not supported in this browser'; btn.disabled = true; return; }
+    const paint = function () { btn.textContent = reminderOn() ? 'Daily 8 PM reminder is on (tap to turn off)' : 'Enable 8 PM daily reminder'; };
+    paint();
+    btn.addEventListener('click', async function () {
+      if (reminderOn()) {
+        localStorage.setItem(REMINDER_KEY, 'false');
+        clearTimeout(reminderTimer);
+      } else {
+        const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+        if (perm === 'granted') { localStorage.setItem(REMINDER_KEY, 'true'); scheduleReminder(); }
+        else alert("Notifications weren't allowed. You can allow them in your browser or phone settings and try again.");
+      }
+      paint();
     });
-    letterRow.appendChild(letterLabelWrap);
-    letterRow.appendChild(letterInput);
-    letterSec.appendChild(letterRow);
+  }
 
-    const readSet = allLettersRead();
-    const progWrap = document.createElement('div');
-    progWrap.className = 'ft-progress-wrap';
-    const bar = document.createElement('div');
-    bar.className = 'ft-progress-bar';
-    const pct = Math.min(100, Math.round((readSet.size / (data.letterMax || 170)) * 100));
-    bar.style.width = pct + '%';
-    progWrap.appendChild(bar);
-    letterSec.appendChild(progWrap);
-    const progLabel = document.createElement('div');
-    progLabel.className = 'ft-progress-label';
-    progLabel.textContent = readSet.size + ' of ' + data.letterMax + ' letters read overall';
-    letterSec.appendChild(progLabel);
+  // ================= auth =================
+  function authErrorMessage(err) {
+    const code = err && err.code;
+    if (code === 'auth/invalid-email') return 'That email address looks invalid.';
+    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Incorrect email or password.';
+    if (code === 'auth/email-already-in-use') return 'An account already exists with that email. Try logging in instead.';
+    if (code === 'auth/weak-password') return 'Please use a password with at least 6 characters.';
+    return (err && err.message) || 'Something went wrong. Please try again.';
+  }
 
-    const settingsLine = document.createElement('div');
-    settingsLine.className = 'ft-settings-line';
-    const settingsLabel = document.createElement('span');
-    settingsLabel.textContent = 'Latest letter number posted';
-    const settingsInput = document.createElement('input');
-    settingsInput.type = 'number';
-    settingsInput.min = 1;
-    settingsInput.value = data.letterMax;
-    settingsInput.addEventListener('change', () => {
-      data.letterMax = Math.max(1, parseInt(settingsInput.value, 10) || data.letterMax);
-      saveData(); render();
+  document.getElementById('ft-auth-login-btn').addEventListener('click', async function () {
+    authError.textContent = '';
+    try { await auth.signInWithEmailAndPassword(emailInput.value.trim(), passwordInput.value); }
+    catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+  document.getElementById('ft-auth-signup-btn').addEventListener('click', async function () {
+    authError.textContent = '';
+    const name = nameInput.value.trim();
+    if (!name) { authError.textContent = "Please enter a display name. It's what others will see on the leaderboard."; return; }
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
+      await cred.user.updateProfile({ displayName: name });
+      if (currentUser) renderAccountLabel();
+    } catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+  document.getElementById('ft-auth-reset-btn').addEventListener('click', async function () {
+    authError.textContent = '';
+    const email = emailInput.value.trim();
+    if (!email) { authError.textContent = 'Enter your email above first, then tap this again.'; return; }
+    try { await auth.sendPasswordResetEmail(email); authError.textContent = 'Password reset email sent.'; }
+    catch (e) { authError.textContent = authErrorMessage(e); }
+  });
+  document.getElementById('ft-logout-btn').addEventListener('click', function () {
+    clearTimeout(reminderTimer);
+    diaryKey = null;
+    auth.signOut();
+  });
+
+  function renderAccountLabel() {
+    accountLabel.innerHTML = '';
+    if (currentUser.displayName) { accountLabel.textContent = currentUser.displayName; return; }
+    const span = el('span', '', 'No display name set — ');
+    const link = el('a', '', 'add one for the leaderboard');
+    link.href = '#';
+    link.style.color = 'var(--accent)';
+    link.addEventListener('click', async function (e) {
+      e.preventDefault();
+      const name = prompt('Display name (shown on the leaderboard):');
+      if (name && name.trim()) {
+        await currentUser.updateProfile({ displayName: name.trim() });
+        renderAccountLabel();
+        updateLeaderboard(toISO(new Date()));
+      }
     });
-    settingsLine.appendChild(settingsLabel);
-    settingsLine.appendChild(settingsInput);
-    letterSec.appendChild(settingsLine);
-
-    content.appendChild(letterSec);
-
-    // exercise / lecture
-    content.appendChild(sectionTitle('Practice'));
-    const practSec = document.createElement('div');
-    practSec.className = 'ft-section';
-    practSec.appendChild(checkRow('Exercise', null, entry.exercise, v => { entry.exercise = v; saveData(); render(); }));
-    practSec.appendChild(checkRow('Lecture', null, entry.lecture, v => { entry.lecture = v; saveData(); render(); }));
-    content.appendChild(practSec);
-
-    // evangelism
-    content.appendChild(sectionTitle('Evangelism'));
-    const evSec = document.createElement('div');
-    evSec.className = 'ft-section';
-    evSec.appendChild(numRow('People met or invited', null, entry.evangelism, v => { entry.evangelism = v; saveData(); render(); }));
-    content.appendChild(evSec);
-
-    // diary
-    content.appendChild(sectionTitle('My Diary today'));
-    const diarySec = document.createElement('div');
-    diarySec.className = 'ft-section';
-    const diaryLabel = document.createElement('div');
-    diaryLabel.className = 'ft-row-label';
-    diaryLabel.style.marginBottom = '6px';
-    diaryLabel.textContent = 'Dear Lord';
-    const diaryTextarea = document.createElement('textarea');
-    diaryTextarea.className = 'ft-text';
-    diaryTextarea.style.marginBottom = '4px';
-    diaryTextarea.placeholder = 'Write today\'s diary entry…';
-    diaryTextarea.value = entry.diaryText || '';
-    diaryTextarea.addEventListener('change', () => { entry.diaryText = diaryTextarea.value; saveData(); });
-    diarySec.appendChild(diaryLabel);
-    diarySec.appendChild(diaryTextarea);
-    diarySec.appendChild(checkRow('Write Diary', null, entry.diary, v => { entry.diary = v; saveData(); render(); }));
-    content.appendChild(diarySec);
-
-    // milestones / champions across all recorded days
-    content.appendChild(sectionTitle('Milestones'));
-    const champSec = document.createElement('div');
-    champSec.className = 'ft-section';
-    const byDay = dayAggregatesAll();
-    const dayCategories = [
-      ['bibleChapters', 'Bible reading', v => v],
-      ['msgReads', 'Message re-reads', v => v],
-      ['lettersCount', 'Letters read', v => v],
-      ['attendanceCount', 'Attendance', v => v],
-      ['evangelism', 'Evangelism', v => v],
-    ];
-    addOverallScores(byDay, dayCategories);
-    const dayCategoriesWithOverall = dayCategories.concat([['overallScore', 'Overall average', v => v]]);
-    renderChampions(
-      champSec, byDay, dayCategoriesWithOverall, iso,
-      (bestIso) => fmtLong(fromISO(bestIso)),
-      'Log a day to start seeing daily milestones here.'
-    );
-    content.appendChild(champSec);
+    span.appendChild(link);
+    accountLabel.appendChild(span);
   }
 
-  function renderWeek() {
-    content.innerHTML = '';
-    const start = startOfWeek(weekAnchor);
-    const end = new Date(start.getTime() + 6 * DAY_MS);
-
-    const nav = document.createElement('div');
-    nav.className = 'ft-nav';
-    const prev = document.createElement('button');
-    prev.textContent = '‹';
-    prev.addEventListener('click', () => { weekAnchor = new Date(weekAnchor.getTime() - 7 * DAY_MS); render(); });
-    const range = document.createElement('div');
-    range.className = 'ft-range';
-    range.textContent = fmtShort(start) + ' – ' + fmtShort(end);
-    const next = document.createElement('button');
-    next.textContent = '›';
-    const isCurrentWeek = toISO(startOfWeek(new Date())) === toISO(start);
-    next.disabled = isCurrentWeek;
-    next.style.opacity = next.disabled ? '0.35' : '1';
-    next.addEventListener('click', () => { if (!next.disabled) { weekAnchor = new Date(weekAnchor.getTime() + 7 * DAY_MS); render(); } });
-    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
-    content.appendChild(nav);
-
-    const agg = {
-      attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(),
-      exerciseDays: 0, lectureDays: 0, evangelism: 0, catchups: 0
-    };
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start.getTime() + i * DAY_MS);
-      const e = data.entries[toISO(d)];
-      if (!e) continue;
-      if (e.sunday || e.predawn || e.wednesday) agg.attendanceDays++;
-      agg.bibleChapters += e.bibleChapters || 0;
-      agg.msgReads += (e.sundayReads || 0) + (e.wednesdayReads || 0);
-      (e.letters || []).forEach(n => agg.letters.add(n));
-      if (e.exercise) agg.exerciseDays++;
-      if (e.lecture) agg.lectureDays++;
-      agg.evangelism += e.evangelism || 0;
-      if (e.catchupSunday) agg.catchups++;
-      if (e.catchupWednesday) agg.catchups++;
-    }
-
-    content.appendChild(sectionTitle('This week'));
-    const grid = document.createElement('div');
-    grid.className = 'ft-stat-grid';
-    const stats = [
-      [agg.attendanceDays + ' / 7', 'Days attended a service'],
-      [agg.bibleChapters, 'Bible chapters read'],
-      [agg.msgReads, 'Message re-reads'],
-      [agg.letters.size, 'Letters read'],
-      [agg.exerciseDays + ' / 7', 'Days exercised'],
-      [agg.lectureDays + ' / 7', 'Days at lecture'],
-      [agg.evangelism, 'People met or invited'],
-      [agg.catchups, 'Catch-ups completed'],
-    ];
-    stats.forEach(([num, label]) => {
-      const s = document.createElement('div');
-      s.className = 'ft-stat';
-      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
-      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
-      s.appendChild(n); s.appendChild(l);
-      grid.appendChild(s);
-    });
-    content.appendChild(grid);
-
-    // milestones / champions across all recorded weeks
-    content.appendChild(sectionTitle('Your milestones'));
-    const champSec = document.createElement('div');
-    champSec.className = 'ft-section';
-    const byWeek = weekAggregatesAll();
-    const weekCategories = [
-      ['bibleChapters', 'Bible reading', v => v],
-      ['msgReads', 'Message re-reads', v => v],
-      ['letters', 'Letters read', v => v.size],
-      ['attendanceDays', 'Attendance', v => v],
-      ['exerciseDays', 'Exercise', v => v],
-      ['lectureDays', 'Lecture', v => v],
-      ['evangelism', 'Evangelism', v => v],
-    ];
-    addOverallScores(byWeek, weekCategories);
-    const weekCategoriesWithOverall = weekCategories.concat([['overallScore', 'Overall average', v => v]]);
-    renderChampions(
-      champSec, byWeek, weekCategoriesWithOverall, toISO(start),
-      (bestWeekStartIso) => {
-        const s = fromISO(bestWeekStartIso);
-        const e = new Date(s.getTime() + 6 * DAY_MS);
-        return fmtShort(s) + ' – ' + fmtShort(e);
-      },
-      'Log a few days to start seeing weekly milestones here.'
-    );
-    content.appendChild(champSec);
-
-    // group leaderboard for this specific week
-    content.appendChild(sectionTitle('Group leaderboard'));
-    const groupSec = document.createElement('div');
-    groupSec.className = 'ft-section';
-    content.appendChild(groupSec);
-    renderGroupLeaderboard(groupSec, 'week', toISO(start));
+  function enterApp() {
+    tabsEl.style.display = '';
+    renderAccountLabel();
+    render();
+    if (reminderOn()) scheduleReminder();
   }
 
-  function aggregateEntries(groupKeyFn) {
-    const byGroup = {};
-    Object.entries(data.entries).forEach(([iso, e]) => {
-      const k = groupKeyFn(iso);
-      if (!byGroup[k]) byGroup[k] = { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
-      const a = byGroup[k];
-      if (e.sunday || e.predawn || e.wednesday) a.attendanceDays++;
-      a.bibleChapters += e.bibleChapters || 0;
-      a.msgReads += (e.sundayReads || 0) + (e.wednesdayReads || 0);
-      (e.letters || []).forEach(n => a.letters.add(n));
-      if (e.exercise) a.exerciseDays++;
-      if (e.lecture) a.lectureDays++;
-      a.evangelism += e.evangelism || 0;
-    });
-    return byGroup;
-  }
-
-  function monthAggregates() {
-    return aggregateEntries(iso => iso.slice(0, 7));
-  }
-
-  function weekAggregatesAll() {
-    return aggregateEntries(iso => toISO(startOfWeek(fromISO(iso))));
-  }
-
-  function dayAggregatesAll() {
-    const byDay = {};
-    Object.entries(data.entries).forEach(([iso, e]) => {
-      byDay[iso] = {
-        bibleChapters: e.bibleChapters || 0,
-        msgReads: (e.sundayReads || 0) + (e.wednesdayReads || 0),
-        lettersCount: (e.letters || []).length,
-        attendanceCount: (e.sunday ? 1 : 0) + (e.predawn ? 1 : 0) + (e.wednesday ? 1 : 0),
-        evangelism: e.evangelism || 0
-      };
-    });
-    return byDay;
-  }
-
-  // Generic renderer for a "best X so far" milestones list.
-  // byGroup: map of groupKey -> aggregate object
-  // categories: array of [dataKey, label, extractFn]
-  // selectedKey: the group key currently being viewed, to mark as leading
-  // formatLabel: groupKey -> display string
-  // emptyMessage: shown when there is no data at all
-  function renderChampions(container, byGroup, categories, selectedKey, formatLabel, emptyMessage) {
-    const keys = Object.keys(byGroup);
-    if (keys.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'ft-empty';
-      empty.textContent = emptyMessage;
-      container.appendChild(empty);
-      return;
-    }
-    let anyShown = false;
-    categories.forEach(([key, label, extract]) => {
-      let bestKey = null, bestVal = -1;
-      keys.forEach(k => {
-        const val = extract(byGroup[k][key]);
-        if (val > bestVal) { bestVal = val; bestKey = k; }
-      });
-      if (bestVal <= 0) return;
-      anyShown = true;
-      const div = document.createElement('div');
-      const isSelected = bestKey === selectedKey;
-      div.className = 'ft-champion' + (isSelected ? ' ft-champ-leading' : '');
-      const catLine = document.createElement('span');
-      catLine.className = 'ft-champ-cat';
-      catLine.textContent = label;
-      const text = document.createElement('div');
-      text.textContent = formatLabel(bestKey) + ' leads with ' + bestVal + (isSelected ? ' — that\'s the one you\'re viewing' : '');
-      div.appendChild(catLine);
-      div.appendChild(text);
-      container.appendChild(div);
-    });
-    if (!anyShown) {
-      const empty = document.createElement('div');
-      empty.className = 'ft-empty';
-      empty.textContent = emptyMessage;
-      container.appendChild(empty);
-    }
-  }
-
-  function renderMonth() {
-    content.innerHTML = '';
-    const nav = document.createElement('div');
-    nav.className = 'ft-nav';
-    const prev = document.createElement('button');
-    prev.textContent = '‹';
-    prev.addEventListener('click', () => { monthAnchor = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() - 1, 1); render(); });
-    const range = document.createElement('div');
-    range.className = 'ft-range';
-    range.textContent = monthLabel(monthAnchor);
-    const next = document.createElement('button');
-    next.textContent = '›';
-    const isCurrentMonth = monthKey(monthAnchor) === monthKey(new Date());
-    next.disabled = isCurrentMonth;
-    next.style.opacity = next.disabled ? '0.35' : '1';
-    next.addEventListener('click', () => { if (!next.disabled) { monthAnchor = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 1); render(); } });
-    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
-    content.appendChild(nav);
-
-    const byMonth = monthAggregates();
-    const mk = monthKey(monthAnchor);
-    const a = byMonth[mk] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
-    const daysInMonth = new Date(monthAnchor.getFullYear(), monthAnchor.getMonth() + 1, 0).getDate();
-
-    content.appendChild(sectionTitle(monthLabel(monthAnchor)));
-    const grid = document.createElement('div');
-    grid.className = 'ft-stat-grid';
-    const stats = [
-      [a.attendanceDays + ' / ' + daysInMonth, 'Days attended a service'],
-      [a.bibleChapters, 'Bible chapters read'],
-      [a.msgReads, 'Message re-reads'],
-      [a.letters.size, 'Letters read'],
-      [a.exerciseDays + ' / ' + daysInMonth, 'Days exercised'],
-      [a.lectureDays + ' / ' + daysInMonth, 'Days at lecture'],
-      [a.evangelism, 'People met or invited'],
-    ];
-    stats.forEach(([num, label]) => {
-      const s = document.createElement('div');
-      s.className = 'ft-stat';
-      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
-      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
-      s.appendChild(n); s.appendChild(l);
-      grid.appendChild(s);
-    });
-    content.appendChild(grid);
-
-    // milestones / champions across all recorded months
-    content.appendChild(sectionTitle('Your milestones'));
-    const champSec = document.createElement('div');
-    champSec.className = 'ft-section';
-    const monthCategories = [
-      ['bibleChapters', 'Bible reading', v => v],
-      ['msgReads', 'Message re-reads', v => v],
-      ['letters', 'Letters read', v => v.size],
-      ['attendanceDays', 'Attendance', v => v],
-      ['exerciseDays', 'Exercise', v => v],
-      ['lectureDays', 'Lecture', v => v],
-      ['evangelism', 'Evangelism', v => v],
-    ];
-    addOverallScores(byMonth, monthCategories);
-    const monthCategoriesWithOverall = monthCategories.concat([['overallScore', 'Overall average', v => v]]);
-    renderChampions(
-      champSec, byMonth, monthCategoriesWithOverall, mk,
-      (bestMonth) => monthLabel(fromISO(bestMonth + '-01')),
-      'Log a few days to start seeing monthly milestones here.'
-    );
-    content.appendChild(champSec);
-
-    // group leaderboard for this specific month
-    content.appendChild(sectionTitle('Group leaderboard'));
-    const groupSec = document.createElement('div');
-    groupSec.className = 'ft-section';
-    content.appendChild(groupSec);
-    renderGroupLeaderboard(groupSec, 'month', mk);
-  }
-
-  function yearAggregatesAll() {
-    return aggregateEntries(iso => iso.slice(0, 4));
-  }
-
-  function renderYear() {
-    content.innerHTML = '';
-    const nav = document.createElement('div');
-    nav.className = 'ft-nav';
-    const prev = document.createElement('button');
-    prev.textContent = '‹';
-    prev.addEventListener('click', () => { yearAnchor = new Date(yearAnchor.getFullYear() - 1, 0, 1); render(); });
-    const range = document.createElement('div');
-    range.className = 'ft-range';
-    range.textContent = String(yearAnchor.getFullYear());
-    const next = document.createElement('button');
-    next.textContent = '›';
-    const isCurrentYear = yearAnchor.getFullYear() === new Date().getFullYear();
-    next.disabled = isCurrentYear;
-    next.style.opacity = next.disabled ? '0.35' : '1';
-    next.addEventListener('click', () => { if (!next.disabled) { yearAnchor = new Date(yearAnchor.getFullYear() + 1, 0, 1); render(); } });
-    nav.appendChild(prev); nav.appendChild(range); nav.appendChild(next);
-    content.appendChild(nav);
-
-    const byYear = yearAggregatesAll();
-    const yk = String(yearAnchor.getFullYear());
-    const a = byYear[yk] || { attendanceDays: 0, bibleChapters: 0, msgReads: 0, letters: new Set(), exerciseDays: 0, lectureDays: 0, evangelism: 0 };
-    const isLeap = (y) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
-    const daysInYear = isLeap(yearAnchor.getFullYear()) ? 366 : 365;
-
-    content.appendChild(sectionTitle(yk));
-    const grid = document.createElement('div');
-    grid.className = 'ft-stat-grid';
-    const stats = [
-      [a.attendanceDays + ' / ' + daysInYear, 'Days attended a service'],
-      [a.bibleChapters, 'Bible chapters read'],
-      [a.msgReads, 'Message re-reads'],
-      [a.letters.size, 'Letters read'],
-      [a.exerciseDays + ' / ' + daysInYear, 'Days exercised'],
-      [a.lectureDays + ' / ' + daysInYear, 'Days at lecture'],
-      [a.evangelism, 'People met or invited'],
-    ];
-    stats.forEach(([num, label]) => {
-      const s = document.createElement('div');
-      s.className = 'ft-stat';
-      const n = document.createElement('div'); n.className = 'ft-stat-num'; n.textContent = num;
-      const l = document.createElement('div'); l.className = 'ft-stat-label'; l.textContent = label;
-      s.appendChild(n); s.appendChild(l);
-      grid.appendChild(s);
-    });
-    content.appendChild(grid);
-
-    // milestones / champions across all recorded years
-    content.appendChild(sectionTitle('Your milestones'));
-    const champSec = document.createElement('div');
-    champSec.className = 'ft-section';
-    const yearCategories = [
-      ['bibleChapters', 'Bible reading', v => v],
-      ['msgReads', 'Message re-reads', v => v],
-      ['letters', 'Letters read', v => v.size],
-      ['attendanceDays', 'Attendance', v => v],
-      ['exerciseDays', 'Exercise', v => v],
-      ['lectureDays', 'Lecture', v => v],
-      ['evangelism', 'Evangelism', v => v],
-    ];
-    addOverallScores(byYear, yearCategories);
-    const yearCategoriesWithOverall = yearCategories.concat([['overallScore', 'Overall average', v => v]]);
-    renderChampions(
-      champSec, byYear, yearCategoriesWithOverall, yk,
-      (bestYear) => bestYear,
-      'Log a few months to start seeing yearly milestones here.'
-    );
-    content.appendChild(champSec);
-
-    // group leaderboard for this specific year
-    content.appendChild(sectionTitle('Group leaderboard'));
-    const groupSec = document.createElement('div');
-    groupSec.className = 'ft-section';
-    content.appendChild(groupSec);
-    renderGroupLeaderboard(groupSec, 'year', yk);
-  }
-
-  // ---------- tabs ----------
-  document.querySelectorAll('.ft-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.ft-tab').forEach(b => b.classList.remove('active'));
+  tabsEl.querySelectorAll('.ft-tab').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      tabsEl.querySelectorAll('.ft-tab').forEach(function (b) { b.classList.remove('active'); });
       btn.classList.add('active');
       activeTab = btn.dataset.tab;
       render();
     });
   });
 
-  // ---------- backup ----------
-  document.getElementById('ft-export-btn').addEventListener('click', exportData);
-  document.getElementById('ft-import-btn').addEventListener('click', () => {
-    document.getElementById('ft-import-file').click();
-  });
-  document.getElementById('ft-import-file').addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) importData(e.target.files[0]);
-    e.target.value = '';
-  });
-
-  // ---------- 8 PM reminder ----------
-  const REMINDER_KEY = 'faith-tracker-reminder-enabled';
-  let reminderTimer = null;
-  const reminderBtn = document.getElementById('ft-reminder-btn');
-
-  function msUntilNext8pm() {
-    const now = new Date();
-    const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0, 0);
-    if (target.getTime() <= now.getTime()) target.setDate(target.getDate() + 1);
-    return target.getTime() - now.getTime();
-  }
-
-  async function fireReminder() {
-    const body = "Don't forget to log today's faith checklist.";
-    try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        reg.showNotification('Faith Checklist', { body, icon: 'icon-192.png', badge: 'icon-192.png' });
-      } else if (Notification.permission === 'granted') {
-        new Notification('Faith Checklist', { body });
-      }
-    } catch (e) { /* ignore */ }
-  }
-
-  function scheduleReminder() {
-    clearTimeout(reminderTimer);
-    reminderTimer = setTimeout(() => { fireReminder(); scheduleReminder(); }, msUntilNext8pm());
-  }
-
-  function updateReminderBtn() {
-    const on = localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
-    reminderBtn.textContent = on ? 'Daily 8 PM reminder is on (tap to turn off)' : 'Enable 8 PM daily reminder';
-    reminderBtn.classList.toggle('ft-reminder-on', on);
-  }
-
-  reminderBtn.addEventListener('click', async () => {
-    const currentlyOn = localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
-    if (currentlyOn) {
-      localStorage.setItem(REMINDER_KEY, 'false');
-      clearTimeout(reminderTimer);
-    } else {
-      if (!('Notification' in window)) {
-        alert("This browser doesn't support notifications, so a reminder can't be scheduled here.");
-        return;
-      }
-      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-      if (perm === 'granted') {
-        localStorage.setItem(REMINDER_KEY, 'true');
-        scheduleReminder();
-      } else {
-        alert('Notifications were not allowed, so the reminder can\'t be turned on. You can allow them in your browser or phone settings and try again.');
-      }
-    }
-    updateReminderBtn();
-  });
-
-  // ---------- auth screen ----------
-  const authRoot = document.getElementById('faith-auth-root');
-  const nameInput = document.getElementById('ft-auth-name');
-  const emailInput = document.getElementById('ft-auth-email');
-  const passwordInput = document.getElementById('ft-auth-password');
-  const authError = document.getElementById('ft-auth-error');
-  const accountEmailLabel = document.getElementById('ft-account-email');
-
-  function authErrorMessage(err) {
-    const code = err && err.code;
-    if (code === 'auth/invalid-email') return 'That email address looks invalid.';
-    if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') return 'Incorrect email or password.';
-    if (code === 'auth/email-already-in-use') return 'An account already exists with that email — try logging in instead.';
-    if (code === 'auth/weak-password') return 'Please use a password with at least 6 characters.';
-    return (err && err.message) || 'Something went wrong. Please try again.';
-  }
-
-  document.getElementById('ft-auth-login-btn').addEventListener('click', async () => {
-    authError.textContent = '';
-    try {
-      await auth.signInWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
-    } catch (e) { authError.textContent = authErrorMessage(e); }
-  });
-
-  document.getElementById('ft-auth-signup-btn').addEventListener('click', async () => {
-    authError.textContent = '';
-    const name = nameInput.value.trim();
-    if (!name) { authError.textContent = 'Please enter a display name — it\'s what others will see on the leaderboard.'; return; }
-    try {
-      const cred = await auth.createUserWithEmailAndPassword(emailInput.value.trim(), passwordInput.value);
-      await cred.user.updateProfile({ displayName: name });
-    } catch (e) { authError.textContent = authErrorMessage(e); }
-  });
-
-  document.getElementById('ft-auth-reset-btn').addEventListener('click', async () => {
-    authError.textContent = '';
-    const email = emailInput.value.trim();
-    if (!email) { authError.textContent = 'Enter your email above first, then tap this again.'; return; }
-    try {
-      await auth.sendPasswordResetEmail(email);
-      authError.textContent = 'Password reset email sent.';
-    } catch (e) { authError.textContent = authErrorMessage(e); }
-  });
-
-  document.getElementById('ft-logout-btn').addEventListener('click', () => {
-    clearTimeout(reminderTimer);
-    auth.signOut();
-  });
-
-  // ---------- init ----------
-  auth.onAuthStateChanged(async (user) => {
+  auth.onAuthStateChanged(async function (user) {
     currentUser = user;
-    if (user) {
-      authRoot.style.display = 'none';
-      root.style.display = '';
-      renderAccountLabel();
-      nameInput.value = '';
-      emailInput.value = '';
-      passwordInput.value = '';
-      authError.textContent = '';
-      await loadData();
-      render();
-      if ('Notification' in window) {
-        updateReminderBtn();
-        if (localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted') {
-          scheduleReminder();
-        }
-      } else {
-        reminderBtn.style.display = 'none';
-      }
-    } else {
+    if (!user) {
       root.style.display = 'none';
       authRoot.style.display = '';
       data = null;
-    }
-  });
-
-  function renderAccountLabel() {
-    accountEmailLabel.innerHTML = '';
-    if (currentUser.displayName) {
-      accountEmailLabel.textContent = currentUser.displayName;
+      diaryKey = null;
       return;
     }
-    // Accounts created before display names existed won't have one yet.
-    const span = document.createElement('span');
-    span.textContent = 'No display name set — ';
-    const link = document.createElement('a');
-    link.href = '#';
-    link.textContent = 'add one for the leaderboard';
-    link.style.color = 'var(--accent)';
-    link.addEventListener('click', async (e) => {
-      e.preventDefault();
-      const name = prompt('Display name (shown on the leaderboard):');
-      if (name && name.trim()) {
-        await currentUser.updateProfile({ displayName: name.trim() });
-        renderAccountLabel();
-      }
-    });
-    span.appendChild(link);
-    accountEmailLabel.appendChild(span);
-  }
+    authRoot.style.display = 'none';
+    root.style.display = '';
+    nameInput.value = ''; emailInput.value = ''; passwordInput.value = ''; authError.textContent = '';
+    content.innerHTML = '<div class="ft-loading">Loading your checklist…</div>';
+    await loadData();
+    try { await loadGroups(); } catch (e) { console.error('Could not load groups', e); }
+    renderAccountLabel();
+    if (!data.groupsSetupDone) renderOnboarding();
+    else enterApp();
+  });
 })();
 
+</script>
+<script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 }
 </script>
 </body>

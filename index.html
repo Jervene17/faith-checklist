@@ -18,8 +18,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="firebase-config.js"></script>
 </head>
-<body>
-<style>
+<body><style>
   #faith-tracker-root {
     --bg: #F6F1E7;
     --ink: #232042;
@@ -550,6 +549,10 @@
         a[m.key] = list.reduce((sum, e) => sum + m.get(e), 0);
       }
     });
+    a.custom = {};
+    list.forEach((e) => {
+      Object.keys(e.custom || {}).forEach((k) => { a.custom[k] = (a.custom[k] || 0) + (e.custom[k] || 0); });
+    });
     return a;
   }
 
@@ -710,6 +713,7 @@
       ['week', 'month', 'year'].forEach(function (type) {
         const s = periodStats(type, iso);
         const row = Object.assign({}, s.agg, {
+          custom: validCustom(s.agg.custom),
           uid: currentUser.uid,
           displayName: displayName,
           periodType: type,
@@ -723,6 +727,25 @@
     } catch (e) { console.error('Leaderboard update failed', e); }
   }
 
+  function validCustom(c) {
+    const ok = {};
+    myGroupList().forEach((g) => (g.items || []).forEach((it) => { ok[g.id + '__' + it.id] = true; }));
+    const out = {};
+    Object.keys(c || {}).forEach((k) => { if (ok[k]) out[k] = c[k]; });
+    return out;
+  }
+
+  // Standard badges plus any custom badges the given group has added.
+  function scopeMetrics(scopeId) {
+    const g = allGroups.filter((x) => x.id === scopeId)[0];
+    const extra = g ? (g.items || []).map((it) => ({
+      key: 'c:' + g.id + '__' + it.id, custom: g.id + '__' + it.id,
+      label: it.label, badge: it.badge, groupBadge: true
+    })) : [];
+    return METRICS.concat(extra);
+  }
+  const valueOf = (r, m) => m.custom ? ((r.custom || {})[m.custom] || 0) : (r[m.key] || 0);
+
   async function fetchLeaderboard(type, key) {
     try {
       const snap = await db.collection('leaderboard')
@@ -734,20 +757,20 @@
     }
   }
 
-  function computeAwards(rows) {
+  function computeAwards(rows, metrics) {
     const maxes = {}, byMetric = {}, badgeCount = {};
-    METRICS.forEach(function (m) {
+    metrics.forEach(function (m) {
       let mx = 0;
-      rows.forEach(function (r) { if ((r[m.key] || 0) > mx) mx = r[m.key]; });
+      rows.forEach(function (r) { if (valueOf(r, m) > mx) mx = valueOf(r, m); });
       maxes[m.key] = mx;
-      const winners = mx > 0 ? rows.filter(function (r) { return (r[m.key] || 0) === mx; }) : [];
+      const winners = mx > 0 ? rows.filter(function (r) { return valueOf(r, m) === mx; }) : [];
       byMetric[m.key] = { max: mx, winners: winners };
       winners.forEach(function (w) { badgeCount[w.uid] = (badgeCount[w.uid] || 0) + 1; });
     });
     const ranked = rows.map(function (r) {
       let sum = 0, c = 0;
-      METRICS.forEach(function (m) {
-        if (maxes[m.key] > 0) { sum += ((r[m.key] || 0) / maxes[m.key]) * 100; c++; }
+      metrics.forEach(function (m) {
+        if (maxes[m.key] > 0) { sum += (valueOf(r, m) / maxes[m.key]) * 100; c++; }
       });
       return { row: r, badges: badgeCount[r.uid] || 0, score: c ? Math.round(sum / c) : 0 };
     }).sort(function (a, b) { return b.badges - a.badges || b.score - a.score; });
@@ -785,7 +808,8 @@
         container.appendChild(el('div', 'ft-empty', 'No one has logged anything for this period yet.'));
         return;
       }
-      const res = computeAwards(scopeRows);
+      const metrics = scopeMetrics(awardScope);
+      const res = computeAwards(scopeRows, metrics);
       const top = res.ranked[0];
       const head = el('div', 'ft-champion' + (top.row.uid === currentUser.uid ? ' ft-champ-leading' : ''));
       head.appendChild(el('span', 'ft-champ-cat', (isFinal ? 'Winner' : 'Leading') + ' · ' + scopeName));
@@ -813,12 +837,12 @@
       container.appendChild(el('p', 'ft-section-title', 'Badges'));
       const bl = el('div', 'ft-section');
       let mine = 0;
-      METRICS.forEach(function (m) {
+      metrics.forEach(function (m) {
         const info = res.byMetric[m.key];
         const isMine = info.winners.some(function (w) { return w.uid === currentUser.uid; });
         if (isMine) mine++;
         const row = el('div', 'ft-badge-row' + (isMine ? ' mine' : ''));
-        row.appendChild(el('span', 'ft-badge-name', badgeName(m)));
+        row.appendChild(el('span', 'ft-badge-name', badgeName(m) + (m.groupBadge ? ' · group badge' : '')));
         row.appendChild(el('span', 'ft-badge-winner',
           info.winners.length
             ? m.label + ' · ' + info.winners.map(function (w) { return (w.displayName || 'Member') + (w.uid === currentUser.uid ? ' (you)' : ''); }).join(', ') + ' · ' + info.max
@@ -826,7 +850,7 @@
         bl.appendChild(row);
       });
       container.appendChild(bl);
-      container.appendChild(el('div', 'ft-note', 'You hold ' + mine + ' of ' + METRICS.length + ' badges here.'));
+      container.appendChild(el('div', 'ft-note', 'You hold ' + mine + ' of ' + metrics.length + ' badges here.'));
     }
     draw();
   }
@@ -844,7 +868,7 @@
   // ================= groups =================
   async function loadGroups() {
     const snap = await db.collection('groups').get();
-    allGroups = snap.docs.map(function (d) { return { id: d.id, name: d.data().name || d.id }; })
+    allGroups = snap.docs.map(function (d) { const x = d.data(); return { id: d.id, name: x.name || d.id, createdBy: x.createdBy || '', items: Array.isArray(x.items) ? x.items : [] }; })
       .sort(function (a, b) { return a.name.localeCompare(b.name); });
   }
 
@@ -863,7 +887,7 @@
     const ref = db.collection('groups').doc(id);
     const snap = await ref.get();
     if (!snap.exists) {
-      await ref.set({ name: name, createdBy: currentUser.uid, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await ref.set({ name: name, createdBy: currentUser.uid, items: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
     }
     if (data.groupIds.indexOf(id) === -1) data.groupIds.push(id);
     await loadGroups();
@@ -900,6 +924,66 @@
     return row;
   }
 
+  let manageOpenId = null;
+
+  function itemsManager(g, onChange) {
+    const box = el('div', 'ft-section');
+    box.style.borderLeft = '3px solid var(--accent)';
+    box.style.paddingLeft = '12px';
+    box.appendChild(el('div', 'ft-note',
+      'Extra checklist items for ' + g.name + '. Members of this group see them on their Today tab, ' +
+      'and each one earns its own badge in this group\'s awards (visible only within this group, not overall).'));
+    const msg = el('div', 'ft-msg');
+    const save = async function (items) {
+      msg.textContent = '';
+      try {
+        await db.collection('groups').doc(g.id).update({ items: items });
+        await loadGroups();
+        onChange();
+      } catch (e) { msg.textContent = 'Could not save: ' + (e.message || e); }
+    };
+    g.items.forEach(function (it, idx) {
+      const row = el('div', 'ft-row');
+      const lw = el('div', 'ft-row-label', it.label);
+      lw.appendChild(el('span', 'ft-row-hint', badgeName(it) + ' · ' + (it.type === 'count' ? 'counter' : 'daily checkbox')));
+      const rm = el('button', 'ft-link', 'Remove');
+      rm.type = 'button';
+      rm.addEventListener('click', function () {
+        if (confirm('Remove "' + it.label + '" from this group? Past totals for it will no longer show.')) {
+          save(g.items.filter(function (_, i) { return i !== idx; }));
+        }
+      });
+      row.appendChild(lw);
+      row.appendChild(rm);
+      box.appendChild(row);
+    });
+    if (g.items.length >= 10) {
+      box.appendChild(el('div', 'ft-note', 'A group can have up to 10 custom items.'));
+    } else {
+      const label = el('input', 'ft-text'); label.type = 'text'; label.maxLength = 40;
+      label.placeholder = 'Item name (e.g. Team prayer)';
+      const badge = el('input', 'ft-text'); badge.type = 'text'; badge.maxLength = 40;
+      badge.placeholder = 'Badge name (e.g. Prayer warrior)';
+      const type = el('select', 'ft-text');
+      [['check', 'Daily checkbox (counts days done)'], ['count', 'Counter (+/− each day)']].forEach(function (o) {
+        const opt = el('option', '', o[1]); opt.value = o[0]; type.appendChild(opt);
+      });
+      const add = el('button', 'ft-btn primary', 'Add item');
+      add.type = 'button';
+      add.addEventListener('click', function () {
+        const l = label.value.trim(), b = badge.value.trim();
+        if (!l || !b) { msg.textContent = 'Give the item both a name and a badge name.'; return; }
+        const id = slugify(l).slice(0, 20) + '-' + Math.random().toString(36).slice(2, 6);
+        save(g.items.concat([{ id: id, label: l, badge: b, type: type.value }]));
+      });
+      const st = el('div', 'ft-stack');
+      st.appendChild(label); st.appendChild(badge); st.appendChild(type); st.appendChild(add);
+      box.appendChild(st);
+    }
+    box.appendChild(msg);
+    return box;
+  }
+
   function renderGroupsPanel(container, onboarding) {
     container.innerHTML = '';
     if (!allGroups.length) {
@@ -907,13 +991,27 @@
     }
     allGroups.forEach(function (g) {
       const isMember = data.groupIds.indexOf(g.id) !== -1;
-      container.appendChild(checkRow(g.name, null, isMember, function (on) {
+      const isOwner = g.createdBy === currentUser.uid;
+      const hint = g.items.length ? g.items.length + ' group item' + (g.items.length === 1 ? '' : 's') : null;
+      container.appendChild(checkRow(g.name + (isOwner ? ' (you created this)' : ''), hint, isMember, function (on) {
         if (on && data.groupIds.indexOf(g.id) === -1) data.groupIds.push(g.id);
         if (!on) data.groupIds = data.groupIds.filter(function (x) { return x !== g.id; });
         saveData();
         updateLeaderboard(toISO(new Date()));
         renderGroupsPanel(container, onboarding);
       }));
+      if (isOwner) {
+        const tog = el('button', 'ft-link', manageOpenId === g.id ? 'Hide group items' : 'Manage group items');
+        tog.type = 'button';
+        tog.addEventListener('click', function () {
+          manageOpenId = manageOpenId === g.id ? null : g.id;
+          renderGroupsPanel(container, onboarding);
+        });
+        container.appendChild(tog);
+        if (manageOpenId === g.id) {
+          container.appendChild(itemsManager(g, function () { renderGroupsPanel(container, onboarding); }));
+        }
+      }
     });
     const inline = el('div', 'ft-inline');
     const input = el('input', 'ft-text');
@@ -1214,6 +1312,19 @@
     }
     s.appendChild(checkRow('Write Diary', null, entry.diary, upd(function (v) { entry.diary = v; })));
 
+    myGroupList().forEach(function (g) {
+      if (!g.items.length) return;
+      const gs = section(g.name);
+      if (!entry.custom) entry.custom = {};
+      g.items.forEach(function (it) {
+        const ck = g.id + '__' + it.id;
+        const cur = entry.custom[ck] || 0;
+        const set = function (v) { entry.custom[ck] = v; };
+        if (it.type === 'count') gs.appendChild(stepRow(it.label, badgeName(it), cur, upd(set)));
+        else gs.appendChild(checkRow(it.label, badgeName(it), !!cur, upd(function (v) { set(v ? 1 : 0); })));
+      });
+    });
+
     s = section('Milestones');
     const daily = METRICS.filter(function (m) { return m.daily; });
     const byDay = dayAggregates();
@@ -1243,6 +1354,20 @@
       grid.appendChild(st);
     });
     s.appendChild(grid);
+
+    myGroupList().forEach(function (g) {
+      if (!g.items.length) return;
+      const gs = section(g.name);
+      const gg = el('div', 'ft-stat-grid');
+      g.items.forEach(function (it) {
+        const ck = g.id + '__' + it.id;
+        const st = el('div', 'ft-stat');
+        st.appendChild(el('div', 'ft-stat-num', String((agg.custom || {})[ck] || 0)));
+        st.appendChild(el('div', 'ft-stat-label', it.label));
+        gg.appendChild(st);
+      });
+      gs.appendChild(gg);
+    });
 
     s = section('Your milestones');
     addOverallScores(byGroup, METRICS);

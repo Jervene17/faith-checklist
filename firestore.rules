@@ -2,8 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each person's private data (checklist entries, encrypted diary, groups).
-    // Only they can read or write it.
+    // Each person's private data (checklist entries, encrypted diary, groups
+    // they belong to). Only they can read or write it.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
@@ -18,15 +18,25 @@ service cloud.firestore {
     }
 
     // Groups (e.g. departments). Signed-in users can list, create and join
-    // them. Groups can't be edited or deleted once created.
+    // them. Only the person who created a group can add or remove its custom
+    // checklist items, and only the "items" field is ever allowed to change —
+    // the name and owner are locked in at creation.
     match /groups/{groupId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 60;
-      allow update, delete: if false;
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.items is list
+        && request.resource.data.items.size() == 0;
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.createdBy
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.items is list
+        && request.resource.data.items.size() <= 10;
+      allow delete: if false;
     }
   }
 }

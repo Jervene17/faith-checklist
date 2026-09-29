@@ -38,5 +38,16 @@ service cloud.firestore {
         && request.resource.data.items.size() <= 10;
       allow delete: if false;
     }
+
+    // Web Push subscriptions for the 8 PM reminder. A person can only see or
+    // remove their own device's subscription. The reminder server itself
+    // reads this collection with an admin service account, which bypasses
+    // these rules entirely, so it can still deliver notifications.
+    match /pushSubscriptions/{docId} {
+      allow read, delete: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create, update: if request.auth != null
+        && request.auth.uid == request.resource.data.uid
+        && docId.matches('.*_' + request.auth.uid);
+    }
   }
 }

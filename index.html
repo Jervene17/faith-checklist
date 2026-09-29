@@ -619,7 +619,6 @@
   let allGroups = [];
   let awardScope = 'all';
   let diaryKey = null;
-  let reminderTimer = null;
 
   const root = document.getElementById('faith-tracker-root');
   const authRoot = document.getElementById('faith-auth-root');
@@ -1436,44 +1435,90 @@
     reader.readAsText(file);
   }
 
-  // ================= 8 PM reminder =================
-  const REMINDER_KEY = 'faith-tracker-reminder-enabled';
-  function msUntilNext8pm() {
-    const now = new Date();
-    const t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 20, 0, 0, 0);
-    if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
-    return t.getTime() - now.getTime();
+  // ================= 8 PM push reminder =================
+  // Real Web Push: a small always-on server (see push-server/) sends the
+  // actual notification at 8 PM, so it arrives even if this app/browser is
+  // fully closed. This code just registers this device to receive it.
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const arr = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
   }
-  async function fireReminder() {
-    const body = "Don't forget to log today's faith checklist.";
-    try {
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
-        reg.showNotification('Faith Checklist', { body: body, icon: 'icon-192.png', badge: 'icon-192.png' });
-      } else if (Notification.permission === 'granted') {
-        new Notification('Faith Checklist', { body: body });
-      }
-    } catch (e) { /* ignore */ }
+
+  function subDocId(sub) {
+    // Stable-ish id per device: hash the endpoint so re-subscribing the
+    // same device updates the same doc instead of piling up duplicates.
+    let h = 0;
+    const s = sub.endpoint;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(h) + '_' + currentUser.uid;
   }
-  function scheduleReminder() {
-    clearTimeout(reminderTimer);
-    reminderTimer = setTimeout(function () { fireReminder(); scheduleReminder(); }, msUntilNext8pm());
+
+  function pushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
-  function reminderOn() {
-    return 'Notification' in window && localStorage.getItem(REMINDER_KEY) === 'true' && Notification.permission === 'granted';
+
+  async function currentPushSubscription() {
+    if (!pushSupported()) return null;
+    const reg = await navigator.serviceWorker.ready;
+    return reg.pushManager.getSubscription();
   }
+
+  async function enablePush() {
+    const vapidKey = window.FAITH_VAPID_PUBLIC_KEY;
+    if (!vapidKey || vapidKey.indexOf('YOUR_') === 0) {
+      throw new Error('Push is not configured yet (missing VAPID key in firebase-config.js).');
+    }
+    const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error("Notifications weren't allowed.");
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidKey) });
+    }
+    const json = sub.toJSON();
+    await db.collection('pushSubscriptions').doc(subDocId(sub)).set({
+      uid: currentUser.uid,
+      endpoint: json.endpoint,
+      keys: json.keys,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return sub;
+  }
+
+  async function disablePush() {
+    const sub = await currentPushSubscription();
+    if (sub) {
+      try { await db.collection('pushSubscriptions').doc(subDocId(sub)).delete(); } catch (e) { /* ignore */ }
+      await sub.unsubscribe();
+    }
+  }
+
   function setupReminderButton(btn) {
-    if (!('Notification' in window)) { btn.textContent = 'Reminders are not supported in this browser'; btn.disabled = true; return; }
-    const paint = function () { btn.textContent = reminderOn() ? 'Daily 8 PM reminder is on (tap to turn off)' : 'Enable 8 PM daily reminder'; };
+    if (!pushSupported()) {
+      btn.textContent = 'Push reminders are not supported in this browser';
+      btn.disabled = true;
+      return;
+    }
+    const paint = async function () {
+      const sub = await currentPushSubscription();
+      btn.textContent = sub ? 'Daily 8 PM reminder is on (tap to turn off)' : 'Enable 8 PM daily reminder';
+      btn.disabled = false;
+    };
+    btn.textContent = 'Checking reminder status…';
+    btn.disabled = true;
     paint();
     btn.addEventListener('click', async function () {
-      if (reminderOn()) {
-        localStorage.setItem(REMINDER_KEY, 'false');
-        clearTimeout(reminderTimer);
-      } else {
-        const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
-        if (perm === 'granted') { localStorage.setItem(REMINDER_KEY, 'true'); scheduleReminder(); }
-        else alert("Notifications weren't allowed. You can allow them in your browser or phone settings and try again.");
+      btn.disabled = true;
+      try {
+        const sub = await currentPushSubscription();
+        if (sub) await disablePush();
+        else await enablePush();
+      } catch (e) {
+        alert(e.message || "Couldn't change the reminder setting. You can also allow notifications in your browser or phone settings and try again.");
       }
       paint();
     });
@@ -1512,7 +1557,6 @@
     catch (e) { authError.textContent = authErrorMessage(e); }
   });
   document.getElementById('ft-logout-btn').addEventListener('click', function () {
-    clearTimeout(reminderTimer);
     diaryKey = null;
     auth.signOut();
   });
@@ -1541,7 +1585,6 @@
     tabsEl.style.display = '';
     renderAccountLabel();
     render();
-    if (reminderOn()) scheduleReminder();
   }
 
   tabsEl.querySelectorAll('.ft-tab').forEach(function (btn) {

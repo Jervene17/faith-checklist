@@ -1,4 +1,28 @@
-const CACHE_NAME = 'faith-checklist-v4';
+const CACHE_NAME = 'faith-checklist-v5';
+
+// A real push message arrived from the reminder server (works even when the
+// app/browser is fully closed, as long as the OS has push enabled).
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (e) { /* ignore */ }
+  const title = payload.title || 'Faith Checklist';
+  const body = payload.body || "Don't forget to log today's faith checklist.";
+  event.waitUntil(self.registration.showNotification(title, {
+    body: body,
+    icon: 'icon-192.png',
+    badge: 'icon-192.png',
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) { if ('focus' in c) return c.focus(); }
+      if (clients.openWindow) return clients.openWindow('./');
+    })
+  );
+});
 const ASSETS = ['./', './index.html', './firebase-config.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (event) => {

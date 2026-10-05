@@ -535,6 +535,7 @@
     { key: 'messages',   label: 'Message re-reads',              badge: 'Word of life',             get: (e) => (e.sundayReads || 0) + (e.wednesdayReads || 0), daily: true },
     { key: 'evangelism', label: 'People met or invited',         badge: 'Loving lives',             get: (e) => e.evangelism || 0, daily: true },
     { key: 'lecture',    label: 'Lectures',                      badge: 'Truth',                    get: lectureCount, daily: true },
+    { key: 'praise',     label: 'Praise',                        badge: 'Myung Gasu',               get: (e) => e.praise || 0, daily: true },
   ];
   const badgeName = (m) => m.badge + ' badge';
 
@@ -745,10 +746,16 @@
   }
   const valueOf = (r, m) => m.custom ? ((r.custom || {})[m.custom] || 0) : (r[m.key] || 0);
 
-  async function fetchLeaderboard(type, key) {
+  function isAdmin() {
+    return !!(currentUser && currentUser.email && currentUser.email.toLowerCase() === 'jervene.venturina@gmail.com');
+  }
+
+  async function fetchLeaderboard(type, key, scopeId) {
     try {
-      const snap = await db.collection('leaderboard')
-        .where('periodType', '==', type).where('periodKey', '==', key).get();
+      let query = db.collection('leaderboard')
+        .where('periodType', '==', type).where('periodKey', '==', key);
+      if (scopeId !== 'all') query = query.where('groupIds', 'array-contains', scopeId);
+      const snap = await query.get();
       return snap.docs.map(function (d) { return d.data(); });
     } catch (e) {
       console.error('Leaderboard fetch failed', e);
@@ -783,25 +790,31 @@
   async function renderAwards(container, type, key, isFinal) {
     container.innerHTML = '';
     container.appendChild(el('div', 'ft-empty', 'Loading awards…'));
-    const rows = await fetchLeaderboard(type, key);
-    if (!container.isConnected) return;
     const groups = myGroupList();
-    if (awardScope !== 'all' && !groups.some(function (g) { return g.id === awardScope; })) awardScope = 'all';
+    const admin = isAdmin();
+    const scopes = (admin ? [{ id: 'all', name: 'Everyone' }] : []).concat(groups);
+    if (!scopes.some(function (g) { return g.id === awardScope; })) awardScope = admin ? 'all' : (groups[0] ? groups[0].id : '');
+    if (!awardScope) {
+      container.innerHTML = '';
+      container.appendChild(el('div', 'ft-empty', 'Join a group to see its leaderboard and badges.'));
+      return;
+    }
+    const rows = await fetchLeaderboard(type, key, awardScope);
+    if (!container.isConnected) return;
 
     function draw() {
       container.innerHTML = '';
-      const scopes = [{ id: 'all', name: 'Everyone' }].concat(groups);
       if (scopes.length > 1) {
         const pills = el('div', 'ft-pills');
         scopes.forEach(function (s) {
           const b = el('button', 'ft-pill' + (s.id === awardScope ? ' active' : ''), s.name);
           b.type = 'button';
-          b.addEventListener('click', function () { awardScope = s.id; draw(); });
+          b.addEventListener('click', function () { awardScope = s.id; renderAwards(container, type, key, isFinal); });
           pills.appendChild(b);
         });
         container.appendChild(pills);
       }
-      const scopeRows = awardScope === 'all' ? rows : rows.filter(function (r) { return (r.groupIds || []).indexOf(awardScope) !== -1; });
+      const scopeRows = rows;
       const scopeName = (scopes.filter(function (s) { return s.id === awardScope; })[0] || scopes[0]).name;
       if (!scopeRows.length) {
         container.appendChild(el('div', 'ft-empty', 'No one has logged anything for this period yet.'));
@@ -1278,6 +1291,9 @@
     s = section('Practice');
     s.appendChild(checkRow('Exercise', null, entry.exercise, upd(function (v) { entry.exercise = v; })));
     s.appendChild(stepRow('Lectures attended', null, lectureCount(entry), upd(function (v) { entry.lecture = v; })));
+
+    s = section('Praise');
+    s.appendChild(stepRow('Praise', 'Myung Gasu badge', entry.praise || 0, upd(function (v) { entry.praise = v; })));
 
     s = section('Evangelism');
     s.appendChild(stepRow('People met or invited', null, entry.evangelism || 0, upd(function (v) { entry.evangelism = v; })));

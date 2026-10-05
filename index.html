@@ -511,8 +511,8 @@
   function fmtShort(d) { return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
   function monthLabel(d) { return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }); }
   function startOfWeek(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay()); }
-  // Retro-logging window: from the most recent Sunday up to today.
-  function minLogDate() { return startOfWeek(new Date()); }
+  // Retro-logging window: today and the previous 14 days.
+  function minLogDate() { return addDays(new Date(), -14); }
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);

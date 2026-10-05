@@ -1290,7 +1290,7 @@
 
     s = section('Practice');
     s.appendChild(checkRow('Exercise', null, entry.exercise, upd(function (v) { entry.exercise = v; })));
-    s.appendChild(stepRow('Lectures attended', null, lectureCount(entry), upd(function (v) { entry.lecture = v; })));
+    s.appendChild(stepRow('Lecture done as lecturer/Lecture approval', null, lectureCount(entry), upd(function (v) { entry.lecture = v; })));
 
     s = section('Praise');
     s.appendChild(stepRow('Praise', 'Myung Gasu badge', entry.praise || 0, upd(function (v) { entry.praise = v; })));

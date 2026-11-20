@@ -544,8 +544,12 @@
     METRICS.forEach((m) => {
       if (m.key === 'letters') {
         const s = new Set();
-        list.forEach((e) => (e.letters || []).forEach((n) => s.add(n)));
-        a.letters = s.size;
+        let counted = 0;
+        list.forEach((e) => {
+          if (typeof e.lettersRead === 'number') counted += e.lettersRead;
+          else (e.letters || []).forEach((n) => s.add(n));
+        });
+        a.letters = counted + s.size;
       } else {
         a[m.key] = list.reduce((sum, e) => sum + m.get(e), 0);
       }
@@ -1260,27 +1264,15 @@
     s.appendChild(stepRow('Wednesday message re-reads', 'The more times the better', entry.wednesdayReads || 0, upd(function (v) { entry.wednesdayReads = v; })));
 
     s = section('Story of the Holy Spirit letter');
-    const lr = el('div', 'ft-row');
-    const llw = el('div', 'ft-row-label', 'Letter numbers read today');
-    llw.appendChild(el('span', 'ft-row-hint', 'e.g. 168, 169, 170'));
-    const li = el('input', 'ft-text');
-    li.type = 'text'; li.style.width = '110px';
-    li.value = (entry.letters || []).join(', ');
-    li.addEventListener('change', function () {
-      const nums = li.value.split(',').map(function (x) { return parseInt(x.trim(), 10); }).filter(function (n) { return !isNaN(n) && n > 0; });
-      entry.letters = Array.from(new Set(nums));
-      saveData(); render();
-    });
-    lr.appendChild(llw); lr.appendChild(li);
-    s.appendChild(lr);
-    const readSet = new Set();
-    Object.keys(data.entries).forEach(function (k) { (data.entries[k].letters || []).forEach(function (n) { readSet.add(n); }); });
+    const lettersToday = typeof entry.lettersRead === 'number' ? entry.lettersRead : new Set(entry.letters || []).size;
+    s.appendChild(stepRow('Letters read today', null, lettersToday, upd(function (v) { entry.lettersRead = v; })));
+    const lettersOverall = aggregateList(Object.keys(data.entries).map(function (k) { return data.entries[k]; })).letters || 0;
     const pw = el('div', 'ft-progress-wrap');
     const bar = el('div', 'ft-progress-bar');
-    bar.style.width = Math.min(100, Math.round(readSet.size / (data.letterMax || 170) * 100)) + '%';
+    bar.style.width = Math.min(100, Math.round(lettersOverall / (data.letterMax || 170) * 100)) + '%';
     pw.appendChild(bar);
     s.appendChild(pw);
-    s.appendChild(el('div', 'ft-progress-label', readSet.size + ' of ' + data.letterMax + ' letters read overall'));
+    s.appendChild(el('div', 'ft-progress-label', lettersOverall + ' of ' + data.letterMax + ' letters read overall'));
     const sl = el('div', 'ft-settings-line');
     sl.appendChild(el('span', '', 'Latest letter number posted'));
     const si = el('input'); si.type = 'number'; si.min = 1; si.value = data.letterMax;
